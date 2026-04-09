@@ -1,0 +1,109 @@
+.menu-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  gap: 32px;
+  width: 100%;
+}
+
+.menu-title {
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #1f2937;
+}
+
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.menu-button {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.menu-button:hover {
+  background: var(--role-color);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.btn-logout {
+  margin-top: 10px;
+  width: 100%;
+  max-width: 340px;
+
+  background: #ef4444;
+  color: white;
+  border: none;
+
+  padding: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+
+  transition: all 0.2s ease;
+}
+
+.btn-logout:hover {
+  background: #dc2626;
+}
+
+
+/* 🔥 ROLE COLORS */
+
+.role-user {
+  --role-color: #2563eb;
+}
+
+.role-superuser {
+  --role-color: #16a34a;
+}
+
+.role-office {
+  --role-color: #7c3aed;
+}
+
+.role-manager {
+  --role-color: #ea580c;
+}
+
+.role-admin {
+  --role-color: #dc2626;
+}
+
+.role-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  color: var(--role-color);
+  border-radius: 50%;
+  margin-right: 8px;
+  background: var(--role-color);
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.menu-button:hover .menu-icon {
+  color: white;
+}
