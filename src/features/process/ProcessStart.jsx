@@ -1,6 +1,6 @@
 import React from "react";
 import { useState } from "react";
-import { useSession } from "../../core/session/SessionContext";
+import { useSession } from "../../core/session/AppSession";
 
 function ProcessStart() {
   const { startSession } = useSession();

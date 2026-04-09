@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../core/auth/AuthContext';
+import { useAuth } from '../core/auth/AppAuth';
 import { getHomeRoute } from '../core/config/roles';
 
 export default function RoleRedirect() {

@@ -11,6 +11,8 @@ import StockPanel from '../features/data/StockPanelV2';
 import PricesPanel from '../features/data/PricesPanelV2';
 import WarehouseMapPanel from '../features/data/WarehouseMapPanelV2';
 import CorrectionsPanel from '../features/data/CorrectionsPanel';
+import Dashboard from '../features/dashboard/Dashboard';
+import UserPanel from '../features/admin/UserPanel';
 
 export default function AppRoutes() {
   return (
@@ -110,11 +112,44 @@ export default function AppRoutes() {
 />
 
 <Route
+  path="/history"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="history">
+        <CorrectionsPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
   path="/data/corrections"
   element={
     <ProtectedRoute>
       <RoleRoute permission="data">
         <CorrectionsPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/dashboard"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="dashboard">
+        <Dashboard />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
+        <UserPanel />
       </RoleRoute>
     </ProtectedRoute>
   }

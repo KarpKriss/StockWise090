@@ -1,4 +1,4 @@
-import { useSession } from '../../core/session/SessionContext';
+import { useSession } from '../../core/session/AppSession';
 
 export default function SessionGate({ children }) {
   const {

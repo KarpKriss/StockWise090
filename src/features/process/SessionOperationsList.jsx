@@ -1,5 +1,5 @@
 import React from "react";
-import { useSession } from "../../core/session/SessionContext";
+import { useSession } from "../../core/session/AppSession";
 
 function SessionOperationsList() {
   const { session } = useSession();

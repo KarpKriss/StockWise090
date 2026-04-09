@@ -1,6 +1,6 @@
 import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from '../core/auth/AuthContext';
-import { SessionProvider } from '../core/session/SessionContext';
+import { AuthProvider } from '../core/auth/AppAuth';
+import { SessionProvider } from '../core/session/AppSession';
 import AppRoutes from './routes';
 import SessionGate from '../components/session/SessionGate';
 

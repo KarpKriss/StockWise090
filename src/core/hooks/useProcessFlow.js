@@ -52,6 +52,14 @@ export function useProcessFlow(config = {}) {
       return false;
     }
 
+    if (currentStep === "quantity" && Number(value) <= 0) {
+      setErrors((prev) => ({
+        ...prev,
+        [currentStep]: "Ilość musi być większa od zera",
+      }));
+      return false;
+    }
+
     return true;
   }, [currentStep, processData, processConfig, sessionActive]);
 

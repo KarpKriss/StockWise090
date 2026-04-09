@@ -1,6 +1,6 @@
 import ProcessStart from './ProcessStart.jsx';
-import ProcessFlow from './ProcessFlow.jsx';
-import { useSession } from '../../core/session/SessionContext';
+import ProcessFlow from './ProcessFlowV2.jsx';
+import { useSession } from '../../core/session/AppSession';
 
 export default function ProcessContainer() {
   const { session, loading, processType } = useSession();

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../core/auth/AuthContext';
-import { useSession } from '../../core/session/SessionContext';
+import { useAuth } from '../../core/auth/AppAuth';
+import { useSession } from '../../core/session/AppSession';
 import { hasPermission } from '../../core/config/roles';
 import './menu.css';
 import {
@@ -57,16 +57,6 @@ export default function MenuScreen() {
     label: 'Dane',
     path: '/data',
     permission: 'data',
-  },
-  {
-    label: 'Statystyki',
-    path: '/dashboard',
-    permission: 'dashboard',
-  },
-  {
-    label: 'Ustawienia',
-    path: '/admin',
-    permission: 'admin',
   },
 ];
 

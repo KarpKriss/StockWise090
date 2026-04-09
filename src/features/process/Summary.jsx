@@ -1,6 +1,6 @@
 import React from "react";
-import { useSession } from "../../core/session/SessionContext";
-import { useAuth } from "../../core/auth/AuthContext";
+import { useSession } from "../../core/session/AppSession";
+import { useAuth } from "../../core/auth/AppAuth";
 
 function SessionSummary() {
   const { session, startSession } = useSession();

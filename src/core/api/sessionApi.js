@@ -110,7 +110,7 @@ export async function heartbeatWithRetry(session_id, retries = 3) {
 
   while (attempt < retries) {
     try {
-      return await heartbeatWithRetry(session.session_id);
+      return await updateSessionHeartbeat(session_id);
     } catch (err) {
       attempt++;
 
