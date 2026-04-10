@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import DataTablePanel from "../../components/data/DataTablePanel";
+import DataTablePanel from "../../components/data/DataTablePanelModern";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchStockRows, replaceStock } from "../../core/api/dataSectionApi";
 import { buildStockImportPreview } from "../../core/upload/dataImports";

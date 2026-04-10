@@ -1,9 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-import LoginScreen from '../features/auth/LoginScreen';
+import LoginScreen from '../features/auth/LoginScreenModern';
 import MenuScreen from '../features/menu/MenuScreen';
 import ProcessContainer from '../features/process/ProcessContainer';
-import DataMenu from '../features/data/DataMenu';
+import DataMenu from '../features/data/DataMenuModern';
 import ProtectedRoute from './ProtectedRoute';
 import RoleRoute from './RoleRoute';
 import ProductsPanel from '../features/data/ProductPanelV2';
@@ -11,7 +11,7 @@ import StockPanel from '../features/data/StockPanelV2';
 import PricesPanel from '../features/data/PricesPanelV2';
 import WarehouseMapPanel from '../features/data/WarehouseMapPanelV2';
 import CorrectionsPanel from '../features/data/CorrectionsPanel';
-import InventoryHistory from '../features/history/InventoryHistory';
+import InventoryHistory from '../features/history/InventoryHistoryModern';
 import Dashboard from '../features/dashboard/DashboardScreen';
 import UserPanel from '../features/admin/UserPanel';
 

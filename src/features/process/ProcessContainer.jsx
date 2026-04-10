@@ -1,4 +1,4 @@
-import ProcessStart from './ProcessStart.jsx';
+import ProcessStart from './ProcessStartModern.jsx';
 import ProcessFlow from './ProcessFlowV2.jsx';
 import EmptyLocationProcess from './EmptyLocationProcess.jsx';
 import ManualInventoryProcess from './ManualInventoryProcess.jsx';

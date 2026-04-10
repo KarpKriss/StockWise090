@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import DataTablePanel from "../../components/data/DataTablePanel";
+import DataTablePanel from "../../components/data/DataTablePanelModern";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   addWarehouseLocation,

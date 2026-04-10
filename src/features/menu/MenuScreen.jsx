@@ -2,7 +2,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AppAuth';
 import { useSession } from '../../core/session/AppSession';
 import { hasPermission } from '../../core/config/roles';
+import PageShell from '../../components/layout/PageShell';
 import './menu.css';
+import './menu-modern.css';
 import {
   Play,
   History,
@@ -70,34 +72,60 @@ const filteredMenu = menuItems.filter((item) =>
 );
  const RoleIcon = roleIconMap[role] || User;
   return (
-    <div className="menu-container">
-    
+    <PageShell
+      title={`Hi, ${user?.name || user?.email?.split('@')[0] || 'Operator'}`}
+      subtitle="Wybierz obszar pracy i wejdz do aktualnego modułu bez szukania po systemie."
+      icon={<RoleIcon size={26} className={`role-icon role-${role}`} />}
+      actions={
+        <>
+          <button className="app-button app-button--secondary" onClick={() => navigate('/process')}>
+            Szybki start
+          </button>
+          <button className="app-button app-button--primary" onClick={handleLogout}>
+            Wyloguj
+          </button>
+        </>
+      }
+      compact
+    >
+      <div className="menu-summary">
+        <div className="menu-summary__avatar">
+          <RoleIcon size={24} />
+        </div>
+        <div>
+          <div className="menu-summary__welcome">Twoj panel roboczy</div>
+          <div className="menu-summary__role">
+            Rola: <strong>{role || 'brak'}</strong>
+          </div>
+        </div>
+      </div>
 
-<h1 className="menu-title">
-  <RoleIcon size={28} className={`role-icon role-${role}`} />
-  StockWise
-</h1>
-
-           <div className="menu-actions">
+      <div className="menu-grid">
         {filteredMenu.map((item) => {
-                  const Icon = iconMap[item.label];
-                
-                  return (
-                    <button
-                      key={item.label}
-                      className={`menu-button role-${role}`}
-                      onClick={() => navigate(item.path)}
-                    >
-                      <Icon size={18} className="menu-icon" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-                </div>
+          const Icon = iconMap[item.label];
 
-      <button className="btn-logout" onClick={handleLogout}>
-        Wyloguj
-      </button>
-    </div>
+          return (
+            <button
+              key={item.label}
+              className={`menu-card role-${role}`}
+              onClick={() => navigate(item.path)}
+            >
+              <div className="menu-card__icon">
+                <Icon size={22} />
+              </div>
+              <div className="menu-card__content">
+                <div className="menu-card__title">{item.label}</div>
+                <div className="menu-card__desc">
+                  {item.label === 'Proces' && 'Operacje terenowe, skanowanie i sesje pracy'}
+                  {item.label === 'Historia' && 'Wyniki inwentaryzacji i przeglad operacji'}
+                  {item.label === 'Dane' && 'Referencje, importy i historia zmian'}
+                  {item.label === 'Statystyki' && 'Metryki, tempo pracy i dane finansowe'}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </PageShell>
   );
 }
