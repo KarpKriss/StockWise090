@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../api/supabaseClient";
 import { logEvent } from "../api/auditApi";
 
 const AuthContext = createContext(null);
+const AUTH_CACHE_KEY = "stockwise-auth-user";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -10,12 +11,16 @@ function sleep(ms) {
 
 async function fetchProfileWithRetry(authUser, attempt = 1) {
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("TIMEOUT")), 5000)
+    setTimeout(() => reject(new Error("TIMEOUT")), 12000)
   );
 
   try {
     const result = await Promise.race([
-      supabase.from("profiles").select("*").eq("user_id", authUser.id).single(),
+      supabase
+        .from("profiles")
+        .select("user_id, role, site_id, status, lock_until")
+        .eq("user_id", authUser.id)
+        .maybeSingle(),
       timeout,
     ]);
 
@@ -25,11 +30,11 @@ async function fetchProfileWithRetry(authUser, attempt = 1) {
 
     return result.data;
   } catch (error) {
-    if (attempt >= 3) {
+    if (attempt >= 4) {
       throw error;
     }
 
-    await sleep(500 * attempt);
+    await sleep(750 * attempt);
     return fetchProfileWithRetry(authUser, attempt + 1);
   }
 }
@@ -44,9 +49,43 @@ function buildUser(authUser, profile) {
   };
 }
 
+function readCachedUser() {
+  try {
+    const raw = window.localStorage.getItem(AUTH_CACHE_KEY);
+
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error("AUTH CACHE READ ERROR:", error);
+    return null;
+  }
+}
+
+function writeCachedUser(user) {
+  try {
+    if (!user) {
+      window.localStorage.removeItem(AUTH_CACHE_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(user));
+  } catch (error) {
+    console.error("AUTH CACHE WRITE ERROR:", error);
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => readCachedUser());
   const [loading, setLoading] = useState(true);
+  const userRef = useRef(user);
+
+  useEffect(() => {
+    userRef.current = user;
+    writeCachedUser(user);
+  }, [user]);
 
   const applyAuthUser = async (authUser) => {
     try {
@@ -55,6 +94,7 @@ export function AuthProvider({ children }) {
       if (profile.status !== "active") {
         await supabase.auth.signOut();
         setUser(null);
+        writeCachedUser(null);
         return false;
       }
 
@@ -65,14 +105,31 @@ export function AuthProvider({ children }) {
       if (lockUntil && lockUntil > Date.now()) {
         await supabase.auth.signOut();
         setUser(null);
+        writeCachedUser(null);
         return false;
       }
 
-      setUser(buildUser(authUser, profile));
+      const nextUser = buildUser(authUser, profile);
+      setUser(nextUser);
       return true;
     } catch (error) {
       console.error("PROFILE FETCH ERROR:", error);
-      setUser(null);
+
+      const currentUser = userRef.current;
+      const cachedUser = readCachedUser();
+      const safeFallback =
+        (currentUser && currentUser.id === authUser?.id && currentUser.status === "active"
+          ? currentUser
+          : null) ||
+        (cachedUser && cachedUser.id === authUser?.id && cachedUser.status === "active"
+          ? cachedUser
+          : null);
+
+      if (safeFallback) {
+        setUser(safeFallback);
+        return true;
+      }
+
       return false;
     }
   };
@@ -87,7 +144,11 @@ export function AuthProvider({ children }) {
         if (!active) return;
 
         if (data?.session?.user) {
-          await applyAuthUser(data.session.user);
+          const applied = await applyAuthUser(data.session.user);
+
+          if (!applied) {
+            setUser(null);
+          }
         } else {
           setUser(null);
         }
@@ -117,7 +178,11 @@ export function AuthProvider({ children }) {
         }
 
         if (session?.user) {
-          await applyAuthUser(session.user);
+          const applied = await applyAuthUser(session.user);
+
+          if (!applied && !userRef.current) {
+            setUser(null);
+          }
         } else {
           setUser(null);
         }
@@ -196,6 +261,7 @@ export function AuthProvider({ children }) {
 
     await supabase.auth.signOut();
     setUser(null);
+    writeCachedUser(null);
   };
 
   return (
