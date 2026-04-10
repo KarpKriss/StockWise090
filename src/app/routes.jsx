@@ -12,7 +12,7 @@ import PricesPanel from '../features/data/PricesPanelV2';
 import WarehouseMapPanel from '../features/data/WarehouseMapPanelV2';
 import CorrectionsPanel from '../features/data/CorrectionsPanel';
 import InventoryHistory from '../features/history/InventoryHistory';
-import Dashboard from '../features/dashboard/Dashboard';
+import Dashboard from '../features/dashboard/DashboardScreen';
 import UserPanel from '../features/admin/UserPanel';
 
 export default function AppRoutes() {

@@ -42,7 +42,7 @@ export default function MenuScreen() {
   manager: BarChart3,
   admin: Settings,
 };
-  const menuItems = [
+const menuItems = [
   {
     label: 'Proces',
     path: '/process',
@@ -57,6 +57,11 @@ export default function MenuScreen() {
     label: 'Dane',
     path: '/data',
     permission: 'data',
+  },
+  {
+    label: 'Statystyki',
+    path: '/dashboard',
+    permission: 'dashboard',
   },
 ];
 
