@@ -142,7 +142,7 @@ export async function getActiveSession(user_id) {
     .select('*')
     .eq('user_id', user_id)
     .eq('status', 'active')
-    .single();
+    .maybeSingle();
 
   if (error) {
     return null; // brak aktywnej sesji = OK

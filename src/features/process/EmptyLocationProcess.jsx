@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../core/auth/AppAuth";
 import { useSession } from "../../core/session/AppSession";
-import { saveEntry } from "../../core/api/entriesApi";
 import { productMap } from "../../core/config/productMap";
 import {
   confirmEmptyLocation,
@@ -12,6 +11,7 @@ import {
   releaseLocationWork,
   resolveProductForSurplus,
   reportLocationProblem,
+  reportLocationSurplus,
 } from "../../core/api/emptyLocationsApi";
 import EanStep from "./steps/EanStep";
 import SkuStep from "./steps/SkuStep";
@@ -113,14 +113,14 @@ export default function EmptyLocationProcess() {
     lockedLocationIdRef.current = location.id;
   }
 
-  async function releaseCurrentLocation(status = "active") {
+  async function releaseCurrentLocation() {
     if (!lockedLocationIdRef.current) {
       return;
     }
 
     const locationId = lockedLocationIdRef.current;
     lockedLocationIdRef.current = null;
-    await releaseLocationWork({ locationId, status });
+    await releaseLocationWork({ locationId });
   }
 
   async function beginZone(zone) {
@@ -293,7 +293,7 @@ export default function EmptyLocationProcess() {
         ean: surplusData.ean || null,
         sku: surplusData.sku.trim(),
         lot: surplusData.lot || null,
-        type: "nadwyżka",
+        type: "surplus",
         quantity,
       };
 
@@ -309,8 +309,17 @@ export default function EmptyLocationProcess() {
       payload.sku = resolvedProduct.sku;
       payload.ean = payload.ean || resolvedProduct.ean || null;
 
-      await saveEntry(payload);
-      await releaseCurrentLocation("active");
+      await reportLocationSurplus({
+        location: currentLocation,
+        user,
+        sessionId: session.session_id,
+        zone: selectedZone,
+        ean: payload.ean,
+        sku: payload.sku,
+        lot: payload.lot,
+        quantity: payload.quantity,
+      });
+      lockedLocationIdRef.current = null;
       addOperation(payload);
       await moveToNextLocation();
     } catch (err) {
@@ -446,7 +455,7 @@ export default function EmptyLocationProcess() {
               setStage("surplus");
             }}
           >
-            Zglos nadwyzke
+            Dodaj towar
           </button>
           <button
             className="btn-secondary full"
@@ -539,7 +548,7 @@ export default function EmptyLocationProcess() {
 
           <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
             <button className="btn-primary full" disabled={submitting} onClick={handleSurplusSubmit}>
-              Zapisz nadwyzke
+              Zapisz towar
             </button>
             <button className="btn-secondary full" disabled={submitting} onClick={() => setStage("decision")}>
               Wroc

@@ -2,6 +2,16 @@ import React from "react";
 import { useSession } from "../../core/session/AppSession";
 import { useAuth } from "../../core/auth/AppAuth";
 
+function isSurplusType(type) {
+  return ["surplus", "nadwyżka", "nadwyzka"].includes(
+    String(type || "").toLowerCase()
+  );
+}
+
+function isShortageType(type) {
+  return ["brak", "shortage"].includes(String(type || "").toLowerCase());
+}
+
 function SessionSummary() {
   const { session, startSession } = useSession();
   const { logout } = useAuth();
@@ -12,15 +22,15 @@ function SessionSummary() {
 
   const totalOperations = operations.length;
 
-  const uniqueSkus = new Set(operations.map((op) => op.sku)).size;
+  const uniqueSkus = new Set(operations.map((op) => op.sku).filter(Boolean)).size;
 
-  const uniqueLocations = new Set(operations.map((op) => op.location)).size;
+  const uniqueLocations = new Set(operations.map((op) => op.location).filter(Boolean)).size;
 
   const algebraicSum = operations.reduce((acc, op) => {
     const qty = Number(op.quantity) || 0;
 
-    if (op.type === "nadwyżka") return acc + qty;
-    if (op.type === "brak") return acc - qty;
+    if (isSurplusType(op.type)) return acc + qty;
+    if (isShortageType(op.type)) return acc - qty;
 
     return acc;
   }, 0);

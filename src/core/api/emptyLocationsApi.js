@@ -192,6 +192,36 @@ export async function reportLocationProblem({
   }
 }
 
+export async function reportLocationSurplus({
+  location,
+  user,
+  sessionId,
+  zone,
+  ean,
+  sku,
+  lot,
+  quantity,
+}) {
+  const { data, error } = await supabase.rpc("report_empty_location_surplus", {
+    p_location_id: location.id,
+    p_session_id: sessionId,
+    p_user_id: user?.id || null,
+    p_operator_email: user?.email || null,
+    p_zone: zone || null,
+    p_ean: ean || null,
+    p_sku: sku || null,
+    p_lot: lot || null,
+    p_quantity: quantity,
+  });
+
+  if (error) {
+    console.error("REPORT EMPTY LOCATION SURPLUS RPC ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie zapisac nadwyzki");
+  }
+
+  return data;
+}
+
 export async function resolveProductForSurplus({ sku, ean }) {
   const normalizedSku = String(sku || "").trim();
   const normalizedEan = String(ean || "").trim();
