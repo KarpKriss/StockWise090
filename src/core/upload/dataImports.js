@@ -1,6 +1,7 @@
 import { supabase } from "../api/supabaseClient";
 import { parseTabularFile } from "../../utils/tabularFile";
 import { validateLocations } from "../utils/validators";
+import { resolveMappedValue } from "../utils/importExportMapping";
 
 function requireHeaders(headers, requiredHeaders) {
   const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
@@ -10,14 +11,34 @@ function requireHeaders(headers, requiredHeaders) {
   }
 }
 
-export async function buildStockImportPreview(file) {
-  const { headers, data } = await parseTabularFile(file);
-  requireHeaders(headers, ["location_code", "sku", "quantity"]);
+export async function buildStockImportPreview(file, mappingConfig) {
+  const { headers, data, rawRows = [] } = await parseTabularFile(file);
 
-  const parsed = data.map((row) => ({
-    location_code: String(row.location_code || row.location || "").trim(),
-    sku: String(row.sku || "").trim(),
-    quantity: String(row.quantity || "").trim(),
+  const parsed = data.map((row, index) => ({
+    location_code: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.location_code,
+      fallbackAliases: ["location_code", "location", "lokalizacja"],
+    }),
+    sku: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.sku,
+      fallbackAliases: ["sku"],
+    }),
+    quantity: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.quantity,
+      fallbackAliases: ["quantity", "ilosc", "qty"],
+    }),
+    zone: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.zone,
+      fallbackAliases: ["zone", "strefa"],
+    }),
   }));
 
   const [{ data: locations }, { data: products }] = await Promise.all([
@@ -56,15 +77,24 @@ export async function buildStockImportPreview(file) {
   return { headers, parsed, valid, invalid };
 }
 
-export async function buildPricesImportPreview(file) {
-  const { headers, data } = await parseTabularFile(file);
-  requireHeaders(headers, ["sku", "price"]);
+export async function buildPricesImportPreview(file, mappingConfig) {
+  const { headers, data, rawRows = [] } = await parseTabularFile(file);
 
   const { data: products } = await supabase.from("products").select("id, sku");
   const productMap = Object.fromEntries((products || []).map((row) => [row.sku, row.id]));
-  const parsed = data.map((row) => ({
-    sku: String(row.sku || "").trim(),
-    price: String(row.price || "").trim(),
+  const parsed = data.map((row, index) => ({
+    sku: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.sku,
+      fallbackAliases: ["sku"],
+    }),
+    price: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.price,
+      fallbackAliases: ["price", "cena"],
+    }),
   }));
   const valid = [];
   const invalid = [];
@@ -91,14 +121,29 @@ export async function buildPricesImportPreview(file) {
   return { headers, parsed, valid, invalid };
 }
 
-export async function buildLocationsImportPreview(file) {
-  const { headers, data } = await parseTabularFile(file);
-  requireHeaders(headers, ["code", "zone"]);
+export async function buildLocationsImportPreview(file, mappingConfig) {
+  const { headers, data, rawRows = [] } = await parseTabularFile(file);
 
-  const parsed = data.map((row) => ({
-    code: String(row.code || "").trim(),
-    zone: String(row.zone || "").trim(),
-    status: String(row.status || "active").trim() || "active",
+  const parsed = data.map((row, index) => ({
+    code: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.code,
+      fallbackAliases: ["code", "location", "lokalizacja"],
+    }),
+    zone: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.zone,
+      fallbackAliases: ["zone", "strefa"],
+    }),
+    status:
+      resolveMappedValue({
+        row,
+        rawRow: rawRows[index],
+        fieldConfig: mappingConfig?.fields?.status,
+        fallbackAliases: ["status"],
+      }) || "active",
   }));
 
   validateLocations(parsed);
@@ -111,15 +156,37 @@ export async function buildLocationsImportPreview(file) {
   };
 }
 
-export async function buildProductsImportPreview(file) {
-  const { headers, data } = await parseTabularFile(file);
-  requireHeaders(headers, ["sku"]);
+export async function buildProductsImportPreview(file, mappingConfig) {
+  const { headers, data, rawRows = [] } = await parseTabularFile(file);
 
-  const parsed = data.map((row) => ({
-    sku: String(row.sku || "").trim(),
-    ean: String(row.ean || "").trim() || null,
-    name: String(row.name || "").trim() || null,
-    status: String(row.status || "active").trim() || "active",
+  const parsed = data.map((row, index) => ({
+    sku: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.sku,
+      fallbackAliases: ["sku"],
+    }),
+    ean:
+      resolveMappedValue({
+        row,
+        rawRow: rawRows[index],
+        fieldConfig: mappingConfig?.fields?.ean,
+        fallbackAliases: ["ean"],
+      }) || null,
+    name:
+      resolveMappedValue({
+        row,
+        rawRow: rawRows[index],
+        fieldConfig: mappingConfig?.fields?.name,
+        fallbackAliases: ["name", "nazwa"],
+      }) || null,
+    status:
+      resolveMappedValue({
+        row,
+        rawRow: rawRows[index],
+        fieldConfig: mappingConfig?.fields?.status,
+        fallbackAliases: ["status"],
+      }) || "active",
   }));
 
   const valid = [];

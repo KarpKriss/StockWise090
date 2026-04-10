@@ -53,8 +53,8 @@ async function parseCsvFile(file) {
   }
 
   const headers = splitCsvLine(lines[0]).map(normalizeHeader);
-  const data = lines.slice(1).map((line) => {
-    const values = splitCsvLine(line);
+  const rawRows = lines.slice(1).map((line) => splitCsvLine(line));
+  const data = rawRows.map((values) => {
     const row = {};
 
     headers.forEach((header, index) => {
@@ -64,7 +64,7 @@ async function parseCsvFile(file) {
     return row;
   });
 
-  return { headers, data };
+  return { headers, data, rawRows };
 }
 
 function getTextFromXmlNode(node) {
@@ -224,7 +224,10 @@ function parseWorksheetRows(xmlText, sharedStrings) {
   });
 
   const headers = (matrix[0] || []).map(normalizeHeader).filter(Boolean);
-  const data = matrix.slice(1).filter((row) => row.some((value) => String(value || "").trim() !== "")).map((row) => {
+  const rawRows = matrix
+    .slice(1)
+    .filter((row) => row.some((value) => String(value || "").trim() !== ""));
+  const data = rawRows.map((row) => {
     const record = {};
 
     headers.forEach((header, index) => {
@@ -234,7 +237,7 @@ function parseWorksheetRows(xmlText, sharedStrings) {
     return record;
   });
 
-  return { headers, data };
+  return { headers, data, rawRows };
 }
 
 async function parseXlsxFile(file) {
@@ -304,4 +307,3 @@ export async function parseTabularFile(file) {
 
   throw new Error("Obsługiwane formaty plików: CSV i XLSX");
 }
-

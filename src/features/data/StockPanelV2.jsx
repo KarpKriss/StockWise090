@@ -3,20 +3,24 @@ import DataTablePanel from "../../components/data/DataTablePanelModern";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchStockRows, replaceStock } from "../../core/api/dataSectionApi";
 import { buildStockImportPreview } from "../../core/upload/dataImports";
+import { useAuth } from "../../core/auth/AppAuth";
+import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
+import { getEntityMapping, getMappedExportColumns } from "../../core/utils/importExportMapping";
 
 function ImportPreview({ preview, onConfirm, onCancel }) {
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <h2>Podgląd importu stocku</h2>
+        <h2>Podglad importu stocku</h2>
         <p>Poprawne rekordy: {preview.valid.length}</p>
-        <p>Błędne rekordy: {preview.invalid.length}</p>
+        <p>Bledne rekordy: {preview.invalid.length}</p>
         <table width="100%" border="1" cellPadding="6">
           <thead>
             <tr>
               <th>Lokalizacja</th>
               <th>SKU</th>
-              <th>Ilość</th>
+              <th>Ilosc</th>
+              <th>Strefa</th>
             </tr>
           </thead>
           <tbody>
@@ -30,6 +34,7 @@ function ImportPreview({ preview, onConfirm, onCancel }) {
                   <td>{row.location_code}</td>
                   <td>{row.sku}</td>
                   <td>{row.quantity}</td>
+                  <td>{row.zone || "-"}</td>
                 </tr>
               );
             })}
@@ -46,7 +51,7 @@ function ImportPreview({ preview, onConfirm, onCancel }) {
         )}
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
           <button disabled={preview.invalid.length > 0} onClick={onConfirm}>
-            Zatwierdź import
+            Zatwierdz import
           </button>
           <button onClick={onCancel}>Anuluj</button>
         </div>
@@ -56,6 +61,7 @@ function ImportPreview({ preview, onConfirm, onCancel }) {
 }
 
 export default function StockPanel() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("location");
@@ -64,6 +70,7 @@ export default function StockPanel() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapping, setMapping] = useState(null);
 
   async function loadRows() {
     try {
@@ -71,7 +78,7 @@ export default function StockPanel() {
       setRows(await fetchStockRows({ search, sortKey }));
       setError("");
     } catch (err) {
-      setError(err.message || "Błąd pobierania stocku");
+      setError(err.message || "Blad pobierania stocku");
     } finally {
       setLoading(false);
     }
@@ -80,6 +87,18 @@ export default function StockPanel() {
   useEffect(() => {
     loadRows();
   }, [search, sortKey]);
+
+  useEffect(() => {
+    async function loadMapping() {
+      try {
+        setMapping(await fetchImportExportMapping(user?.site_id || null));
+      } catch (err) {
+        console.error("STOCK MAPPING LOAD ERROR:", err);
+      }
+    }
+
+    loadMapping();
+  }, [user?.site_id]);
 
   const filteredRows = useMemo(
     () =>
@@ -100,7 +119,7 @@ export default function StockPanel() {
       if (!file) return;
 
       try {
-        setPreview(await buildStockImportPreview(file));
+        setPreview(await buildStockImportPreview(file, getEntityMapping(mapping, "stock")?.import));
       } catch (err) {
         alert(err.message);
       }
@@ -111,7 +130,7 @@ export default function StockPanel() {
   const confirmImport = async () => {
     try {
       await replaceStock(preview.valid);
-      alert(`Zaimportowano ${preview.valid.length} rekordów stocku.`);
+      alert(`Zaimportowano ${preview.valid.length} rekordow stocku.`);
       setPreview(null);
       loadRows();
     } catch (err) {
@@ -119,7 +138,7 @@ export default function StockPanel() {
     }
   };
 
-  if (loading) return <div>Ładowanie danych stock...</div>;
+  if (loading) return <div>Ladowanie danych stock...</div>;
   if (error) return <div>{error}</div>;
 
   const locationsList = [...new Set(rows.map((row) => row.location))].sort();
@@ -132,7 +151,7 @@ export default function StockPanel() {
         columns={[
           { key: "location", label: "Lokalizacja" },
           { key: "sku", label: "SKU" },
-          { key: "quantity", label: "Ilość" },
+          { key: "quantity", label: "Ilosc" },
         ]}
         data={filteredRows}
         onSearchChange={setSearch}
@@ -145,11 +164,7 @@ export default function StockPanel() {
         onExport={() =>
           exportToCSV({
             data: filteredRows,
-            columns: [
-              { key: "location", label: "Lokalizacja" },
-              { key: "sku", label: "SKU" },
-              { key: "quantity", label: "Ilość" },
-            ],
+            columns: getMappedExportColumns("stock", mapping),
             fileName: "stock.csv",
           })
         }

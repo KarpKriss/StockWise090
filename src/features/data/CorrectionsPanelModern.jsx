@@ -4,12 +4,16 @@ import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchCorrectionRowsWithProblems } from "../../core/api/correctionRowsApi";
+import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
+import { getMappedExportColumns } from "../../core/utils/importExportMapping";
+import { useAuth } from "../../core/auth/AppAuth";
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
 export default function CorrectionsPanelModern() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [selectedUser, setSelectedUser] = useState("all");
   const [search, setSearch] = useState("");
@@ -18,6 +22,7 @@ export default function CorrectionsPanelModern() {
   const [selectedRow, setSelectedRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapping, setMapping] = useState(null);
 
   useEffect(() => {
     async function loadRows() {
@@ -34,6 +39,18 @@ export default function CorrectionsPanelModern() {
 
     loadRows();
   }, []);
+
+  useEffect(() => {
+    async function loadMapping() {
+      try {
+        setMapping(await fetchImportExportMapping(user?.site_id || null));
+      } catch (err) {
+        console.error("CORRECTIONS MAPPING LOAD ERROR:", err);
+      }
+    }
+
+    loadMapping();
+  }, [user?.site_id]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -74,14 +91,7 @@ export default function CorrectionsPanelModern() {
           onClick={() =>
             exportToCSV({
               data: exportRows,
-              columns: [
-                { key: "created_at", label: "Data" },
-                { key: "user_id", label: "Operator" },
-                { key: "entry_id", label: "Entry ID" },
-                { key: "reason", label: "Powod" },
-                { key: "old_value", label: "Stara wartosc" },
-                { key: "new_value", label: "Nowa wartosc" },
-              ],
+              columns: getMappedExportColumns("corrections", mapping),
               fileName: "corrections.csv",
             })
           }

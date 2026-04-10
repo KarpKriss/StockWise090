@@ -9,14 +9,17 @@ import {
   updatePriceRow,
 } from "../../core/api/dataSectionApi";
 import { buildPricesImportPreview } from "../../core/upload/dataImports";
+import { useAuth } from "../../core/auth/AppAuth";
+import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
+import { getEntityMapping, getMappedExportColumns } from "../../core/utils/importExportMapping";
 
 function ImportPreview({ preview, onConfirm, onCancel }) {
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <h2>Podgląd importu cen</h2>
+        <h2>Podglad importu cen</h2>
         <p>Poprawne rekordy: {preview.valid.length}</p>
-        <p>Błędne rekordy: {preview.invalid.length}</p>
+        <p>Bledne rekordy: {preview.invalid.length}</p>
         <pre style={preStyle}>{JSON.stringify(preview.parsed.slice(0, 20), null, 2)}</pre>
         {preview.invalid.length > 0 && (
           <div>
@@ -29,7 +32,7 @@ function ImportPreview({ preview, onConfirm, onCancel }) {
         )}
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
           <button disabled={preview.invalid.length > 0} onClick={onConfirm}>
-            Zatwierdź import
+            Zatwierdz import
           </button>
           <button onClick={onCancel}>Anuluj</button>
         </div>
@@ -39,12 +42,14 @@ function ImportPreview({ preview, onConfirm, onCancel }) {
 }
 
 export default function PricesPanel() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("sku");
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapping, setMapping] = useState(null);
 
   async function loadRows() {
     try {
@@ -52,7 +57,7 @@ export default function PricesPanel() {
       setRows(await fetchPriceRows({ search, sortKey }));
       setError("");
     } catch (err) {
-      setError(err.message || "Błąd pobierania cen");
+      setError(err.message || "Blad pobierania cen");
     } finally {
       setLoading(false);
     }
@@ -61,6 +66,18 @@ export default function PricesPanel() {
   useEffect(() => {
     loadRows();
   }, [search, sortKey]);
+
+  useEffect(() => {
+    async function loadMapping() {
+      try {
+        setMapping(await fetchImportExportMapping(user?.site_id || null));
+      } catch (err) {
+        console.error("PRICES MAPPING LOAD ERROR:", err);
+      }
+    }
+
+    loadMapping();
+  }, [user?.site_id]);
 
   const openImport = () => {
     const input = document.createElement("input");
@@ -71,7 +88,7 @@ export default function PricesPanel() {
       if (!file) return;
 
       try {
-        setPreview(await buildPricesImportPreview(file));
+        setPreview(await buildPricesImportPreview(file, getEntityMapping(mapping, "prices")?.import));
       } catch (err) {
         alert(err.message);
       }
@@ -82,7 +99,7 @@ export default function PricesPanel() {
   const confirmImport = async () => {
     try {
       const result = await insertNewPrices(preview.valid);
-      alert(`Dodano ${result.inserted} nowych cen, pominięto ${result.skipped} duplikatów.`);
+      alert(`Dodano ${result.inserted} nowych cen, pominieto ${result.skipped} duplikatow.`);
       setPreview(null);
       loadRows();
     } catch (err) {
@@ -92,7 +109,7 @@ export default function PricesPanel() {
 
   const handleAdd = async () => {
     const sku = window.prompt("Podaj SKU");
-    const price = Number(window.prompt("Podaj cenę"));
+    const price = Number(window.prompt("Podaj cene"));
 
     if (!sku || Number.isNaN(price)) {
       alert("Niepoprawne dane");
@@ -108,7 +125,7 @@ export default function PricesPanel() {
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`Usunąć cenę dla ${row.sku}?`)) return;
+    if (!window.confirm(`Usunac cene dla ${row.sku}?`)) return;
 
     try {
       await deletePriceRow(row.id);
@@ -120,7 +137,7 @@ export default function PricesPanel() {
 
   const handleEdit = async (row, newPrice) => {
     if (Number.isNaN(newPrice) || newPrice < 0) {
-      alert("Cena musi być poprawną liczbą");
+      alert("Cena musi byc poprawna liczba");
       return;
     }
 
@@ -132,7 +149,7 @@ export default function PricesPanel() {
     }
   };
 
-  if (loading) return <div>Ładowanie cen...</div>;
+  if (loading) return <div>Ladowanie cen...</div>;
   if (error) return <div>{error}</div>;
 
   return (
@@ -150,17 +167,14 @@ export default function PricesPanel() {
         onExport={() =>
           exportToCSV({
             data: rows,
-            columns: [
-              { key: "sku", label: "SKU" },
-              { key: "price", label: "Cena" },
-            ],
+            columns: getMappedExportColumns("prices", mapping),
             fileName: "prices.csv",
           })
         }
         onDelete={handleDelete}
         onEdit={handleEdit}
         onAdd={handleAdd}
-        addLabel="Dodaj cenę"
+        addLabel="Dodaj cene"
         searchPlaceholder="Szukaj po SKU lub cenie..."
       />
 

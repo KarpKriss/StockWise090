@@ -3,14 +3,17 @@ import DataTablePanel from "../../components/data/DataTablePanelModern";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchProductRows, insertProducts } from "../../core/api/dataSectionApi";
 import { buildProductsImportPreview } from "../../core/upload/dataImports";
+import { useAuth } from "../../core/auth/AppAuth";
+import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
+import { getEntityMapping, getMappedExportColumns } from "../../core/utils/importExportMapping";
 
 function PreviewOverlay({ preview, onConfirm, onCancel }) {
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <h2>Podgląd importu produktów</h2>
+        <h2>Podglad importu produktow</h2>
         <p>Poprawne rekordy: {preview.valid.length}</p>
-        <p>Błędne rekordy: {preview.invalid.length}</p>
+        <p>Bledne rekordy: {preview.invalid.length}</p>
         <pre style={preStyle}>{JSON.stringify(preview.parsed.slice(0, 20), null, 2)}</pre>
         {preview.invalid.length > 0 && (
           <div>
@@ -23,7 +26,7 @@ function PreviewOverlay({ preview, onConfirm, onCancel }) {
         )}
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
           <button disabled={preview.invalid.length > 0} onClick={onConfirm}>
-            Zatwierdź import
+            Zatwierdz import
           </button>
           <button onClick={onCancel}>Anuluj</button>
         </div>
@@ -33,12 +36,14 @@ function PreviewOverlay({ preview, onConfirm, onCancel }) {
 }
 
 export default function ProductsPanel() {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("sku");
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapping, setMapping] = useState(null);
 
   async function loadProducts() {
     try {
@@ -46,7 +51,7 @@ export default function ProductsPanel() {
       setProducts(await fetchProductRows({ search, sortKey }));
       setError("");
     } catch (err) {
-      setError(err.message || "Błąd pobierania produktów");
+      setError(err.message || "Blad pobierania produktow");
     } finally {
       setLoading(false);
     }
@@ -55,6 +60,18 @@ export default function ProductsPanel() {
   useEffect(() => {
     loadProducts();
   }, [search, sortKey]);
+
+  useEffect(() => {
+    async function loadMapping() {
+      try {
+        setMapping(await fetchImportExportMapping(user?.site_id || null));
+      } catch (err) {
+        console.error("PRODUCT MAPPING LOAD ERROR:", err);
+      }
+    }
+
+    loadMapping();
+  }, [user?.site_id]);
 
   const openImport = () => {
     const input = document.createElement("input");
@@ -65,7 +82,7 @@ export default function ProductsPanel() {
       if (!file) return;
 
       try {
-        setPreview(await buildProductsImportPreview(file));
+        setPreview(await buildProductsImportPreview(file, getEntityMapping(mapping, "products")?.import));
       } catch (err) {
         alert(err.message);
       }
@@ -76,7 +93,7 @@ export default function ProductsPanel() {
   const confirmImport = async () => {
     try {
       const result = await insertProducts(preview.valid);
-      alert(`Dodano ${result.inserted} nowych produktów, pominięto ${result.skipped}.`);
+      alert(`Dodano ${result.inserted} nowych produktow, pominieto ${result.skipped}.`);
       setPreview(null);
       loadProducts();
     } catch (err) {
@@ -84,7 +101,7 @@ export default function ProductsPanel() {
     }
   };
 
-  if (loading) return <div>Ładowanie produktów...</div>;
+  if (loading) return <div>Ladowanie produktow...</div>;
   if (error) return <div>{error}</div>;
 
   return (
@@ -104,12 +121,7 @@ export default function ProductsPanel() {
         onExport={() =>
           exportToCSV({
             data: products,
-            columns: [
-              { key: "sku", label: "SKU" },
-              { key: "ean", label: "EAN" },
-              { key: "name", label: "Nazwa" },
-              { key: "status", label: "Status" },
-            ],
+            columns: getMappedExportColumns("products", mapping),
             fileName: "products.csv",
           })
         }

@@ -7,16 +7,19 @@ import {
   replaceLocations,
 } from "../../core/api/dataSectionApi";
 import { buildLocationsImportPreview } from "../../core/upload/dataImports";
+import { useAuth } from "../../core/auth/AppAuth";
+import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
+import { getEntityMapping, getMappedExportColumns } from "../../core/utils/importExportMapping";
 
 function ImportPreview({ preview, onConfirm, onCancel }) {
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <h2>Podgląd importu mapy</h2>
+        <h2>Podglad importu mapy</h2>
         <p>Rekordy do importu: {preview.valid.length}</p>
         <pre style={preStyle}>{JSON.stringify(preview.parsed.slice(0, 20), null, 2)}</pre>
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-          <button onClick={onConfirm}>Zatwierdź import</button>
+          <button onClick={onConfirm}>Zatwierdz import</button>
           <button onClick={onCancel}>Anuluj</button>
         </div>
       </div>
@@ -25,6 +28,7 @@ function ImportPreview({ preview, onConfirm, onCancel }) {
 }
 
 export default function WarehouseMapPanel() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("code");
@@ -34,6 +38,7 @@ export default function WarehouseMapPanel() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapping, setMapping] = useState(null);
   const limit = 50;
 
   async function loadRows() {
@@ -50,7 +55,7 @@ export default function WarehouseMapPanel() {
       setTotalCount(response.count);
       setError("");
     } catch (err) {
-      setError(err.message || "Błąd pobierania mapy magazynu");
+      setError(err.message || "Blad pobierania mapy magazynu");
     } finally {
       setLoading(false);
     }
@@ -59,6 +64,18 @@ export default function WarehouseMapPanel() {
   useEffect(() => {
     loadRows();
   }, [page, search, zoneFilter, sortKey]);
+
+  useEffect(() => {
+    async function loadMapping() {
+      try {
+        setMapping(await fetchImportExportMapping(user?.site_id || null));
+      } catch (err) {
+        console.error("LOCATIONS MAPPING LOAD ERROR:", err);
+      }
+    }
+
+    loadMapping();
+  }, [user?.site_id]);
 
   const openImport = () => {
     const input = document.createElement("input");
@@ -69,7 +86,7 @@ export default function WarehouseMapPanel() {
       if (!file) return;
 
       try {
-        setPreview(await buildLocationsImportPreview(file));
+        setPreview(await buildLocationsImportPreview(file, getEntityMapping(mapping, "locations")?.import));
       } catch (err) {
         alert(err.message);
       }
@@ -104,7 +121,7 @@ export default function WarehouseMapPanel() {
     }
   };
 
-  if (loading) return <div>Ładowanie mapy magazynu...</div>;
+  if (loading) return <div>Ladowanie mapy magazynu...</div>;
   if (error) return <div>{error}</div>;
 
   const zones = [...new Set(rows.map((row) => row.zone).filter(Boolean))].sort();
@@ -134,16 +151,12 @@ export default function WarehouseMapPanel() {
         onExport={() =>
           exportToCSV({
             data: rows,
-            columns: [
-              { key: "code", label: "Lokalizacja" },
-              { key: "zone", label: "Strefa" },
-              { key: "status", label: "Status" },
-            ],
+            columns: getMappedExportColumns("locations", mapping),
             fileName: "warehouse-map.csv",
           })
         }
         onAdd={handleAdd}
-        addLabel="Dodaj lokalizację"
+        addLabel="Dodaj lokalizacje"
         searchPlaceholder="Szukaj po kodzie lokalizacji..."
       />
 
