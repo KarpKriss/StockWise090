@@ -10,7 +10,7 @@ import ProductsPanel from '../features/data/ProductPanelV2';
 import StockPanel from '../features/data/StockPanelV2';
 import PricesPanel from '../features/data/PricesPanelV2';
 import WarehouseMapPanel from '../features/data/WarehouseMapPanelV2';
-import CorrectionsPanel from '../features/data/CorrectionsPanel';
+import CorrectionsPanel from '../features/data/CorrectionsPanelModern';
 import InventoryHistory from '../features/history/InventoryHistoryModern';
 import Dashboard from '../features/dashboard/DashboardScreen';
 import UserPanel from '../features/admin/UserPanel';

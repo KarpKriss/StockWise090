@@ -117,7 +117,7 @@ export default function LoginScreenModern() {
 
           {errors.general ? <div className="login-error">{errors.general}</div> : null}
 
-          <Button type="submit" loading={loading} disabled={loading} size="lg">
+          <Button type="submit" loading={loading} loadingLabel="Logowanie..." disabled={loading} size="lg">
             Zaloguj sie
           </Button>
         </form>

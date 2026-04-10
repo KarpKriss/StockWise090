@@ -1,0 +1,672 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ClipboardCheck,
+  PackagePlus,
+  ScanLine,
+  Warehouse,
+} from "lucide-react";
+import { useAuth } from "../../core/auth/AppAuth";
+import { useSession } from "../../core/session/AppSession";
+import {
+  confirmEmptyLocation,
+  fetchEmptyLocationsForZone,
+  fetchEmptyLocationZones,
+  markLocationOnWork,
+  releaseLocationWork,
+  resolveProductForSurplus,
+  reportLocationProblem,
+  reportLocationSurplus,
+} from "../../core/api/emptyLocationsApi";
+import PageShell from "../../components/layout/PageShell";
+import Button from "../../components/ui/Button";
+import EanStepModern from "./steps/EanStepModern";
+import SkuStepModern from "./steps/SkuStepModern";
+import LotStepModern from "./steps/LotStepModern";
+import QuantityStepModern from "./steps/QuantityStepModern";
+
+const PROBLEM_OPTIONS = [
+  {
+    value: "Towar uszkodzony",
+    title: "Towar uszkodzony",
+    description: "Zglos uszkodzenie produktu lub opakowania.",
+  },
+  {
+    value: "Problem z iloscia towaru",
+    title: "Problem z iloscia",
+    description: "Towar jest obecny, ale ilosc budzi watpliwosci.",
+  },
+  {
+    value: "Brak identyfikacji towaru",
+    title: "Brak identyfikacji",
+    description: "Nie da sie jednoznacznie rozpoznac produktu.",
+  },
+];
+
+function SummaryCard({ zone, progress, location }) {
+  return (
+    <div className="process-summary-card">
+      <div className="process-summary-item">
+        <div className="process-summary-item__label">Strefa</div>
+        <div className="process-summary-item__value">{zone || "-"}</div>
+      </div>
+      <div className="process-summary-item">
+        <div className="process-summary-item__label">Postep</div>
+        <div className="process-summary-item__value">{progress}</div>
+      </div>
+      <div className="process-summary-item">
+        <div className="process-summary-item__label">Aktualna lokalizacja</div>
+        <div className="process-summary-item__value">{location || "-"}</div>
+      </div>
+    </div>
+  );
+}
+
+export default function EmptyLocationProcessModern() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { session, isActive, addOperation } = useSession();
+  const [zones, setZones] = useState([]);
+  const [completedZones, setCompletedZones] = useState([]);
+  const [selectedZone, setSelectedZone] = useState("");
+  const [queue, setQueue] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [stage, setStage] = useState("zones");
+  const [scanValue, setScanValue] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [surplusData, setSurplusData] = useState({
+    ean: "",
+    sku: "",
+    lot: "",
+    quantity: "",
+  });
+  const [problemNote, setProblemNote] = useState("");
+  const lockedLocationIdRef = useRef(null);
+
+  const currentLocation = queue[currentIndex] || null;
+  const totalLocations = totalCount || queue.length;
+  const availableZones = useMemo(
+    () => zones.filter((zone) => !completedZones.includes(zone)),
+    [zones, completedZones]
+  );
+
+  useEffect(() => {
+    if (!user?.site_id) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadZones() {
+      try {
+        setLoading(true);
+        const nextZones = await fetchEmptyLocationZones({ siteId: user.site_id });
+
+        if (!cancelled) {
+          setZones(nextZones);
+          setError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Blad pobierania stref");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadZones();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.site_id]);
+
+  useEffect(() => {
+    return () => {
+      if (lockedLocationIdRef.current) {
+        releaseLocationWork({ locationId: lockedLocationIdRef.current }).catch((releaseError) => {
+          console.error("EMPTY PROCESS CLEANUP RELEASE ERROR:", releaseError);
+        });
+      }
+    };
+  }, []);
+
+  async function activateLocation(location) {
+    if (!location?.id || !user?.id) {
+      return;
+    }
+
+    await markLocationOnWork({
+      locationId: location.id,
+      userId: user.id,
+    });
+
+    lockedLocationIdRef.current = location.id;
+  }
+
+  async function beginZone(zone) {
+    try {
+      setSubmitting(true);
+      const result = await fetchEmptyLocationsForZone({
+        zone,
+        siteId: user?.site_id,
+      });
+      const locations = result.locations || [];
+
+      setSelectedZone(zone);
+      setQueue(locations);
+      setTotalCount(result.totalCount || locations.length);
+      setCurrentIndex(0);
+      setScanValue("");
+      setProblemNote("");
+      setError("");
+
+      if (locations.length === 0) {
+        setStage("zone-finished");
+        return;
+      }
+
+      await activateLocation(locations[0]);
+      setStage("scan");
+    } catch (err) {
+      setError(err.message || "Nie udalo sie uruchomic strefy");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function moveToNextLocation() {
+    const nextIndex = currentIndex + 1;
+
+    setScanValue("");
+    setSurplusData({ ean: "", sku: "", lot: "", quantity: "" });
+    setProblemNote("");
+
+    if (nextIndex >= totalLocations) {
+      setCompletedZones((current) =>
+        current.includes(selectedZone) ? current : [...current, selectedZone]
+      );
+      setStage("zone-finished");
+      return;
+    }
+
+    const nextLocation = queue[nextIndex];
+    await activateLocation(nextLocation);
+    setCurrentIndex(nextIndex);
+    setStage("scan");
+  }
+
+  function resetToZonePicker() {
+    setSelectedZone("");
+    setQueue([]);
+    setTotalCount(0);
+    setCurrentIndex(0);
+    setScanValue("");
+    setProblemNote("");
+    setError("");
+    setStage("zones");
+  }
+
+  async function handleScanConfirm() {
+    if (!currentLocation) {
+      return;
+    }
+
+    const normalizedInput = scanValue.trim().toLowerCase();
+    const normalizedLocation = String(currentLocation.code || "").trim().toLowerCase();
+
+    if (!normalizedInput) {
+      setError("Najpierw zeskanuj albo wpisz lokalizacje.");
+      return;
+    }
+
+    if (normalizedInput !== normalizedLocation) {
+      setError("Skan nie zgadza sie z aktualna lokalizacja.");
+      return;
+    }
+
+    setError("");
+    setStage("decision");
+  }
+
+  async function handleConfirmEmpty() {
+    if (!currentLocation || !session?.session_id) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await confirmEmptyLocation({
+        location: currentLocation,
+        user,
+        sessionId: session.session_id,
+        zone: selectedZone,
+      });
+
+      lockedLocationIdRef.current = null;
+      addOperation({
+        location: currentLocation.code,
+        zone: selectedZone,
+        type: "pusta_lokalizacja",
+        quantity: 0,
+      });
+      await moveToNextLocation();
+    } catch (err) {
+      setError(err.message || "Nie udalo sie potwierdzic pustej lokalizacji.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleProblemReport(reason) {
+    if (!currentLocation || !session?.session_id) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await reportLocationProblem({
+        location: currentLocation,
+        user,
+        sessionId: session.session_id,
+        zone: selectedZone,
+        reason,
+        note: problemNote.trim() || null,
+      });
+
+      lockedLocationIdRef.current = null;
+      addOperation({
+        location: currentLocation.code,
+        zone: selectedZone,
+        type: "problem",
+        quantity: 0,
+        reason,
+      });
+      await moveToNextLocation();
+    } catch (err) {
+      setError(err.message || "Nie udalo sie zapisac problemu.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSurplusSubmit() {
+    if (!currentLocation || !session?.session_id || !user?.id) {
+      return;
+    }
+
+    const quantity = Number(surplusData.quantity);
+
+    if (!surplusData.sku.trim()) {
+      setError("SKU jest wymagane.");
+      return;
+    }
+
+    if (!quantity || quantity <= 0) {
+      setError("Ilosc musi byc wieksza od zera.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const resolvedProduct = await resolveProductForSurplus({
+        sku: surplusData.sku.trim(),
+        ean: surplusData.ean || null,
+      });
+
+      if (!resolvedProduct) {
+        throw new Error("Nie znaleziono SKU lub EAN w kartotece produktow.");
+      }
+
+      const normalizedPayload = {
+        ean: surplusData.ean || resolvedProduct.ean || null,
+        sku: resolvedProduct.sku,
+        lot: surplusData.lot || null,
+        quantity,
+      };
+
+      await reportLocationSurplus({
+        location: currentLocation,
+        user,
+        sessionId: session.session_id,
+        zone: selectedZone,
+        ean: normalizedPayload.ean,
+        sku: normalizedPayload.sku,
+        lot: normalizedPayload.lot,
+        quantity: normalizedPayload.quantity,
+      });
+
+      lockedLocationIdRef.current = null;
+      addOperation({
+        session_id: session.session_id,
+        operator: user.email,
+        site_id: user.site_id,
+        user_id: user.id,
+        operation_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        location: currentLocation.code,
+        type: "surplus",
+        ...normalizedPayload,
+      });
+
+      await moveToNextLocation();
+    } catch (err) {
+      setError(err.message || "Nie udalo sie zapisac nadwyzki.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!session?.session_id || !isActive) {
+    return (
+      <PageShell
+        compact
+        title="Brak aktywnej sesji"
+        subtitle="Uruchom proces z menu, aby rozpoczac kontrole pustych lokalizacji."
+        icon={<Warehouse size={26} />}
+        backTo="/menu"
+      >
+        <div className="app-card">
+          <Button onClick={() => navigate("/menu")} size="lg">
+            Powrot do menu
+          </Button>
+        </div>
+      </PageShell>
+    );
+  }
+
+  const progress = totalLocations ? `${Math.min(currentIndex + 1, totalLocations)}/${totalLocations}` : "-";
+
+  return (
+    <PageShell
+      compact
+      title="Inwentaryzacja pustych lokalizacji"
+      subtitle="Sprawdzaj lokalizacje jedna po drugiej, potwierdzaj puste miejsca i raportuj wyjatki bez opuszczania flow."
+      icon={<Warehouse size={26} />}
+      backTo="/process"
+      backLabel="Powrot do wyboru procesu"
+    >
+      <div className="process-layout">
+        {selectedZone ? (
+          <SummaryCard zone={selectedZone} progress={progress} location={currentLocation?.code} />
+        ) : null}
+
+        {error ? <div className="input-error-text">{error}</div> : null}
+
+        {loading ? (
+          <div className="app-card">Ladowanie stref...</div>
+        ) : null}
+
+        {!loading && stage === "zones" ? (
+          <div className="app-card process-panel">
+            <div>
+              <h2 className="process-panel__title">Wybierz strefe startowa</h2>
+              <p className="process-panel__subtitle">
+                Strefy sa pokazywane jako wygodne kafle, a po ukonczeniu znikaja z listy.
+              </p>
+            </div>
+
+            {availableZones.length === 0 ? (
+              <div className="app-empty-state">
+                Brak kolejnych stref z aktywnymi lokalizacjami do sprawdzenia.
+              </div>
+            ) : (
+              <div className="process-zone-grid">
+                {availableZones.map((zone) => (
+                  <button
+                    key={zone}
+                    type="button"
+                    className="card selectable process-zone-card"
+                    disabled={submitting}
+                    onClick={() => beginZone(zone)}
+                  >
+                    <div className="process-zone-card__eyebrow">Strefa</div>
+                    <div className="process-zone-card__value">{zone}</div>
+                    <div className="process-zone-card__footer">
+                      Rozpocznij kontrole <ArrowRight size={14} style={{ verticalAlign: "middle" }} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="process-actions">
+              <Button variant="secondary" size="lg" onClick={() => navigate("/menu")}>
+                Powrot do menu
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {stage === "scan" && currentLocation ? (
+          <div className="app-card process-stage-card">
+            <div className="process-stage-header">
+              <div className="process-stage-header__icon">
+                <ScanLine size={22} />
+              </div>
+              <div className="process-stage-header__text">
+                <h2>Potwierdz lokalizacje</h2>
+                <p>Zeskanuj kod lub wpisz go recznie, aby przejsc dalej.</p>
+              </div>
+            </div>
+
+            <div className="scan-placeholder">{currentLocation.code}</div>
+
+            <input
+              className="input"
+              placeholder="Zeskanuj lub wpisz kod lokalizacji"
+              value={scanValue}
+              onChange={(event) => setScanValue(event.target.value)}
+            />
+
+            <div className="process-actions">
+              <Button size="lg" loading={submitting} onClick={handleScanConfirm}>
+                Potwierdz skan
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {stage === "decision" && currentLocation ? (
+          <div className="app-card process-stage-card">
+            <div className="process-stage-header">
+              <div className="process-stage-header__icon">
+                <ClipboardCheck size={22} />
+              </div>
+              <div className="process-stage-header__text">
+                <h2>Czy lokalizacja jest pusta?</h2>
+                <p>Wybierz dalszy krok dla aktualnej lokalizacji w strefie {selectedZone}.</p>
+              </div>
+            </div>
+
+            <div className="process-meta-grid">
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Strefa</div>
+                <div className="process-meta-item__value">{selectedZone}</div>
+              </div>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Lokalizacja</div>
+                <div className="process-meta-item__value">{currentLocation.code}</div>
+              </div>
+            </div>
+
+            <div className="process-choice-grid">
+              <button
+                type="button"
+                className="card selectable process-choice-card"
+                disabled={submitting}
+                onClick={handleConfirmEmpty}
+              >
+                <div className="process-choice-card__title">Tak, jest pusta</div>
+                <div className="process-choice-card__desc">
+                  Zapisz lokalizacje jako sprawdzona i przejdz do kolejnej.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="card selectable process-choice-card"
+                disabled={submitting}
+                onClick={() => {
+                  setError("");
+                  setStage("surplus");
+                }}
+              >
+                <div className="process-choice-card__title">Dodaj towar</div>
+                <div className="process-choice-card__desc">
+                  Zarejestruj znaleziona nadwyzke z poziomu tej lokalizacji.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="card selectable process-choice-card"
+                disabled={submitting}
+                onClick={() => {
+                  setError("");
+                  setProblemNote("");
+                  setStage("problem");
+                }}
+              >
+                <div className="process-choice-card__title">Zglos problem</div>
+                <div className="process-choice-card__desc">
+                  Dodaj problem operacyjny lub identyfikacyjny bez przerywania pracy.
+                </div>
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {stage === "problem" && currentLocation ? (
+          <div className="app-card process-stage-card">
+            <div className="process-stage-header">
+              <div className="process-stage-header__icon">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="process-stage-header__text">
+                <h2>Wybierz typ problemu</h2>
+                <p>Opis zostanie zapisany razem z lokalizacja i aktualnym operatorem.</p>
+              </div>
+            </div>
+
+            <textarea
+              className="input"
+              placeholder="Opcjonalny komentarz do problemu"
+              value={problemNote}
+              onChange={(event) => setProblemNote(event.target.value)}
+              style={{ minHeight: 120 }}
+            />
+
+            <div className="process-choice-grid">
+              {PROBLEM_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="card selectable process-choice-card"
+                  disabled={submitting}
+                  onClick={() => handleProblemReport(option.value)}
+                >
+                  <div className="process-choice-card__title">{option.title}</div>
+                  <div className="process-choice-card__desc">{option.description}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="process-actions">
+              <Button variant="secondary" size="lg" onClick={() => setStage("decision")}>
+                Wroc
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {stage === "surplus" && currentLocation ? (
+          <div className="app-card process-stage-card">
+            <div className="process-stage-header">
+              <div className="process-stage-header__icon">
+                <PackagePlus size={22} />
+              </div>
+              <div className="process-stage-header__text">
+                <h2>Dodaj towar dla {currentLocation.code}</h2>
+                <p>Uzupelnij dane produktu i zapisz nadwyzke bez opuszczania procesu.</p>
+              </div>
+            </div>
+
+            <div className="process-section-grid">
+              <EanStepModern
+                value={surplusData.ean}
+                onChange={(value) => setSurplusData((current) => ({ ...current, ean: value }))}
+              />
+              <SkuStepModern
+                value={surplusData.sku}
+                onChange={(value) => setSurplusData((current) => ({ ...current, sku: value }))}
+              />
+              <LotStepModern
+                value={surplusData.lot}
+                onChange={(value) => setSurplusData((current) => ({ ...current, lot: value }))}
+              />
+              <QuantityStepModern
+                value={surplusData.quantity}
+                onChange={(value) => setSurplusData((current) => ({ ...current, quantity: value }))}
+              />
+            </div>
+
+            <div className="process-actions">
+              <Button size="lg" loading={submitting} onClick={handleSurplusSubmit}>
+                Zapisz towar
+              </Button>
+              <Button variant="secondary" size="lg" onClick={() => setStage("decision")}>
+                Wroc
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {stage === "zone-finished" ? (
+          <div className="app-card process-stage-card">
+            <div className="process-stage-header">
+              <div className="process-stage-header__icon">
+                <CheckCircle2 size={22} />
+              </div>
+              <div className="process-stage-header__text">
+                <h2>Strefa zakonczona</h2>
+                <p>Ta czesc magazynu zostala juz obsluzona i jest gotowa do zamkniecia.</p>
+              </div>
+            </div>
+
+            <div className="process-meta-grid">
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Strefa</div>
+                <div className="process-meta-item__value">{selectedZone || "-"}</div>
+              </div>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Sprawdzone lokalizacje</div>
+                <div className="process-meta-item__value">{totalLocations}</div>
+              </div>
+            </div>
+
+            <div className="process-actions">
+              <Button size="lg" onClick={resetToZonePicker}>
+                Rozpocznij nastepna strefe
+              </Button>
+              <Button variant="secondary" size="lg" onClick={() => navigate("/menu")}>
+                Powrot do menu
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </PageShell>
+  );
+}

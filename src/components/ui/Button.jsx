@@ -3,6 +3,7 @@ import { useState } from 'react';
 export default function Button({
   children,
   loading,
+  loadingLabel = null,
   variant = 'primary',
   size = 'md',
   className = '',
@@ -19,7 +20,7 @@ export default function Button({
       onMouseUp={() => setPressed(false)}
       onMouseLeave={() => setPressed(false)}
     >
-      {loading ? 'Logowanie...' : children}
+      {loading ? loadingLabel || children : children}
     </button>
   );
 }

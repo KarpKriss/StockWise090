@@ -1,6 +1,6 @@
 import ProcessStart from './ProcessStartModern.jsx';
 import ProcessFlow from './ProcessFlowV2.jsx';
-import EmptyLocationProcess from './EmptyLocationProcess.jsx';
+import EmptyLocationProcess from './EmptyLocationProcessModern.jsx';
 import ManualInventoryProcess from './ManualInventoryProcess.jsx';
 import { useSession } from '../../core/session/AppSession';
 
