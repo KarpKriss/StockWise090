@@ -18,7 +18,7 @@ const SETTINGS_ITEMS = [
   },
   {
     title: "Import/Export",
-    description: "Skróty do obslugi danych wsadowych, eksportow i konfiguracji zasilek.",
+    description: "Skroty do obslugi danych wsadowych, eksportow i konfiguracji zasilek.",
     path: "/admin/import-export",
     icon: Download,
   },
@@ -85,3 +85,4 @@ export default function SettingsHome() {
     </PageShell>
   );
 }
+

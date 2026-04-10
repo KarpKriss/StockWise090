@@ -916,6 +916,89 @@ table th {
   font-weight: 700;
 }
 
+.user-toolbar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.user-toolbar-row {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.user-toolbar-row > * {
+  flex: 1 1 180px;
+}
+
+.user-toolbar-row__search {
+  flex: 2 1 280px;
+}
+
+.user-table-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, rgba(109, 94, 252, 0.18), rgba(155, 174, 255, 0.28));
+  color: var(--app-primary-strong);
+  font-weight: 800;
+}
+
+.user-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-inline__title {
+  font-weight: 700;
+}
+
+.user-inline__meta {
+  font-size: 13px;
+  color: var(--app-text-soft);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-badge--active {
+  background: rgba(46, 191, 143, 0.12);
+  color: var(--app-success);
+}
+
+.status-badge--inactive {
+  background: rgba(235, 90, 120, 0.12);
+  color: var(--app-danger);
+}
+
+.status-badge--paused {
+  background: rgba(255, 182, 72, 0.14);
+  color: #b5781b;
+}
+
+.status-badge--neutral {
+  background: rgba(84, 98, 140, 0.12);
+  color: var(--app-text-soft);
+}
+
+.helper-note {
+  font-size: 12px;
+  color: var(--app-text-soft);
+  line-height: 1.5;
+}
+
 @media (max-width: 768px) {
   .page-shell {
     width: min(100%, calc(100% - 16px));
