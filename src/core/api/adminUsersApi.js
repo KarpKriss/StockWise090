@@ -50,6 +50,17 @@ async function invokeAdminUsers(action, payload = {}) {
   return data;
 }
 
+async function invokeAdminRpc(functionName, payload = {}) {
+  const { data, error } = await supabase.rpc(functionName, payload);
+
+  if (error) {
+    console.error(`ADMIN RPC ERROR [${functionName}]:`, error);
+    throw new Error(error.message || `Blad funkcji ${functionName}`);
+  }
+
+  return data;
+}
+
 async function fetchAdminUsersListFallback() {
   const [profilesResult, sessionsResult] = await Promise.all([
     supabase
@@ -116,29 +127,25 @@ function requireEdgeFunctionFeature(message) {
 
 export async function fetchAdminUsersList() {
   try {
-    const data = await invokeAdminUsers("list");
-    return (data.users || []).map((entry) => ({ ...entry, backendMode: "edge" }));
+    const data = await invokeAdminRpc("get_admin_users_overview");
+    return (data || []).map((entry) => ({ ...entry, backendMode: "rpc" }));
   } catch (error) {
-    if (!isEdgeFunctionUnavailable(error)) {
-      throw error;
-    }
-
     return fetchAdminUsersListFallback();
   }
 }
 
 export async function updateAdminUserProfile(userId, payload) {
   try {
-    const data = await invokeAdminUsers("update", {
-      userId,
-      payload,
+    const rows = await invokeAdminRpc("admin_update_user_profile", {
+      p_user_id: userId,
+      p_name: payload.name ?? null,
+      p_role: payload.role ?? null,
+      p_status: payload.status ?? null,
+      p_operator_number: payload.operatorNumber ?? null,
     });
 
-    return data.user;
+    return Array.isArray(rows) ? rows[0] : rows;
   } catch (error) {
-    if (isEdgeFunctionUnavailable(error)) {
-      requireEdgeFunctionFeature("Nie udalo sie zapisac zmian uzytkownika.");
-    }
     throw error;
   }
 }
