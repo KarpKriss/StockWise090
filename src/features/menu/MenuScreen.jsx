@@ -25,10 +25,15 @@ export default function MenuScreen() {
   console.log('USER ROLE:', role);
 
   const handleLogout = async () => {
-    if (session) {
-      await endSession();
+    try {
+      if (session) {
+        await endSession();
+      }
+    } catch (error) {
+      console.error("END SESSION ON LOGOUT ERROR:", error);
+    } finally {
+      await logout();
     }
-    await logout();
   };
   const iconMap = {
     Proces: Play,

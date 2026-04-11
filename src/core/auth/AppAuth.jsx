@@ -253,15 +253,19 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await logEvent({
-      user_id: user?.id || null,
-      session_id: null,
-      event_type: "LOGOUT",
-    });
-
-    await supabase.auth.signOut();
-    setUser(null);
-    writeCachedUser(null);
+    try {
+      await logEvent({
+        user_id: user?.id || null,
+        session_id: null,
+        event_type: "LOGOUT",
+      });
+    } catch (error) {
+      console.error("LOGOUT AUDIT ERROR:", error);
+    } finally {
+      await supabase.auth.signOut();
+      setUser(null);
+      writeCachedUser(null);
+    }
   };
 
   return (
