@@ -50,6 +50,19 @@ async function invokeAdminUsers(action, payload = {}) {
   return data;
 }
 
+export async function checkAdminUsersEdgeAvailability() {
+  try {
+    await invokeAdminUsers("health");
+    return true;
+  } catch (error) {
+    if (isEdgeFunctionUnavailable(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
 async function invokeAdminRpc(functionName, payload = {}) {
   const { data, error } = await supabase.rpc(functionName, payload);
 

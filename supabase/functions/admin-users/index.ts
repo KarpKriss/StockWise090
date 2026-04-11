@@ -335,6 +335,8 @@ Deno.serve(async (req) => {
     const { serviceClient, user } = await getAdminContext(req);
 
     switch (action) {
+      case "health":
+        return json(200, { ok: true });
       case "list":
         return await listUsers(serviceClient);
       case "create":
