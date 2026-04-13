@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Download, Plus, Search, Upload } from "lucide-react";
 import PageShell from "../layout/PageShell";
 
@@ -19,9 +19,43 @@ export default function DataTablePanelModern({
   onEdit,
   onAdd,
   addLabel = "Dodaj",
+  pageSize = 25,
+  page = null,
+  totalCount = null,
+  onPageChange = null,
 }) {
   const [searchValue, setSearchValue] = useState("");
+  const [internalPage, setInternalPage] = useState(1);
   const showActions = Boolean(onDelete || onEdit);
+  const isServerPagination = typeof onPageChange === "function" && typeof page === "number";
+
+  useEffect(() => {
+    if (!isServerPagination) {
+      setInternalPage(1);
+    }
+  }, [data, searchValue, isServerPagination]);
+
+  const currentPage = isServerPagination ? page : internalPage;
+  const resolvedTotalCount = isServerPagination ? totalCount || 0 : data.length;
+  const totalPages = Math.max(1, Math.ceil((resolvedTotalCount || 0) / pageSize));
+
+  const pagedData = useMemo(() => {
+    if (isServerPagination) return data;
+
+    const from = (currentPage - 1) * pageSize;
+    return data.slice(from, from + pageSize);
+  }, [currentPage, data, isServerPagination, pageSize]);
+
+  function goToPage(nextPage) {
+    const safePage = Math.min(Math.max(1, nextPage), totalPages);
+
+    if (isServerPagination) {
+      onPageChange(safePage);
+      return;
+    }
+
+    setInternalPage(safePage);
+  }
 
   return (
     <PageShell
@@ -114,7 +148,7 @@ export default function DataTablePanelModern({
             </tr>
           </thead>
           <tbody>
-            {data.map((row, index) => (
+            {pagedData.map((row, index) => (
               <tr key={row.id || index}>
                 {columns.map((column) => (
                   <td key={column.key}>
@@ -144,7 +178,7 @@ export default function DataTablePanelModern({
               </tr>
             ))}
 
-            {data.length === 0 ? (
+            {pagedData.length === 0 ? (
               <tr>
                 <td colSpan={columns.length + (showActions ? 1 : 0)} className="app-empty-state">
                   Brak danych
@@ -153,6 +187,33 @@ export default function DataTablePanelModern({
             ) : null}
           </tbody>
         </table>
+
+        <div className="data-table-pagination">
+          <div className="helper-note">
+            Pokazywane: <strong>{pagedData.length}</strong> z <strong>{resolvedTotalCount}</strong> rekordow
+          </div>
+          <div className="data-table-pagination__controls">
+            <button
+              type="button"
+              className="app-button app-button--secondary"
+              disabled={currentPage <= 1}
+              onClick={() => goToPage(currentPage - 1)}
+            >
+              Poprzednia
+            </button>
+            <div className="data-table-pagination__status">
+              Strona {currentPage} / {totalPages}
+            </div>
+            <button
+              type="button"
+              className="app-button app-button--secondary"
+              disabled={currentPage >= totalPages}
+              onClick={() => goToPage(currentPage + 1)}
+            >
+              Nastepna
+            </button>
+          </div>
+        </div>
       </div>
     </PageShell>
   );

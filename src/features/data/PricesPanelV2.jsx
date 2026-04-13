@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
+import ImportPreviewModal from "../../components/data/ImportPreviewModal";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   createPriceRow,
@@ -12,34 +13,6 @@ import { buildPricesImportPreview } from "../../core/upload/dataImports";
 import { useAuth } from "../../core/auth/AppAuth";
 import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
 import { getEntityMapping, getMappedExportColumns } from "../../core/utils/importExportMapping";
-
-function ImportPreview({ preview, onConfirm, onCancel }) {
-  return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <h2>Podglad importu cen</h2>
-        <p>Poprawne rekordy: {preview.valid.length}</p>
-        <p>Bledne rekordy: {preview.invalid.length}</p>
-        <pre style={preStyle}>{JSON.stringify(preview.parsed.slice(0, 20), null, 2)}</pre>
-        {preview.invalid.length > 0 && (
-          <div>
-            {preview.invalid.map((row, index) => (
-              <div key={index}>
-                {row.sku || "(brak SKU)"} - {row.errors.join(", ")}
-              </div>
-            ))}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-          <button disabled={preview.invalid.length > 0} onClick={onConfirm}>
-            Zatwierdz import
-          </button>
-          <button onClick={onCancel}>Anuluj</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function PricesPanel() {
   const { user } = useAuth();
@@ -175,38 +148,26 @@ export default function PricesPanel() {
         onEdit={handleEdit}
         onAdd={handleAdd}
         addLabel="Dodaj cene"
+        pageSize={25}
         searchPlaceholder="Szukaj po SKU lub cenie..."
       />
 
       {preview && (
-        <ImportPreview preview={preview} onConfirm={confirmImport} onCancel={() => setPreview(null)} />
+        <ImportPreviewModal
+          title="Podglad importu cen"
+          intro="Najpierw widzisz podsumowanie i probke danych. Po imporcie zapisane zostana tylko poprawne pozycje."
+          preview={preview}
+          columns={[
+            { key: "sku", label: "SKU" },
+            { key: "price", label: "Cena" },
+          ]}
+          getRowKey={(row, index) => `${row.sku || "sku"}-${index}`}
+          getRowValue={(row, key) => row[key] || "-"}
+          getInvalidLabel={(row) => row.sku || "(brak SKU)"}
+          onConfirm={confirmImport}
+          onCancel={() => setPreview(null)}
+        />
       )}
     </>
   );
 }
-
-const overlayStyle = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.6)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 1000,
-};
-
-const modalStyle = {
-  width: "min(920px, 92vw)",
-  maxHeight: "90vh",
-  overflow: "auto",
-  background: "#fff",
-  padding: 24,
-  borderRadius: 12,
-};
-
-const preStyle = {
-  maxHeight: 280,
-  overflow: "auto",
-  background: "#f5f5f5",
-  padding: 12,
-};

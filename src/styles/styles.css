@@ -415,6 +415,32 @@ table th {
   font-weight: 700;
 }
 
+.data-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(84, 98, 140, 0.1);
+}
+
+.data-table-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.data-table-pagination__status {
+  min-width: 120px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--app-text-soft);
+}
+
 .confirm-row {
   display: flex;
   justify-content: space-between;
