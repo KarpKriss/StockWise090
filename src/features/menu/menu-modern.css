@@ -36,10 +36,19 @@
 .menu-summary__avatar {
   width: 56px;
   height: 56px;
+  display: grid;
+  place-items: center;
+}
+
+.menu-summary__avatar-portrait {
+  width: 56px;
+  height: 56px;
   border-radius: 20px;
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, var(--role-color), rgba(109, 94, 252, 0.72));
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.36), transparent 34%),
+    linear-gradient(145deg, var(--role-color), rgba(109, 94, 252, 0.72));
   color: white;
   box-shadow: 0 16px 26px rgba(80, 66, 218, 0.18);
 }
@@ -49,6 +58,14 @@
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--app-text-soft);
+  margin-bottom: 4px;
+}
+
+.menu-summary__name {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--app-text);
   margin-bottom: 4px;
 }
 

@@ -12,7 +12,17 @@ function formatDate(value) {
 function sourceLabel(value) {
   if (value === "manual_inventory") return "Reczna inwentaryzacja";
   if (value === "empty_location") return "Kontrola pustych lokalizacji";
-  return "Nieznane zrodlo";
+  return "Nieznany proces";
+}
+
+function sourceHint(value) {
+  if (value === "manual_inventory") {
+    return "Zgloszenie zostalo utworzone podczas recznej inwentaryzacji.";
+  }
+  if (value === "empty_location") {
+    return "Zgloszenie zostalo utworzone podczas kontroli pustych lokalizacji.";
+  }
+  return "Dla tego wpisu nie udalo sie jednoznacznie ustalic procesu zrodlowego.";
 }
 
 export default function ProblemsPanelModern() {
@@ -94,7 +104,7 @@ export default function ProblemsPanelModern() {
                 { key: "location_code", label: "Lokalizacja" },
                 { key: "zone", label: "Strefa" },
                 { key: "issue_type", label: "Typ problemu" },
-                { key: "source_process", label: "Zrodlo" },
+                { key: "source_process", label: "Proces" },
                 { key: "status", label: "Status" },
                 { key: "note", label: "Komentarz" },
               ],
@@ -119,7 +129,7 @@ export default function ProblemsPanelModern() {
           </div>
 
           <div className="app-field">
-            <label className="app-field__label">Zrodlo</label>
+            <label className="app-field__label">Proces</label>
             <select value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)}>
               <option value="all">Wszystkie procesy</option>
               {sources.map((source) => (
@@ -158,7 +168,7 @@ export default function ProblemsPanelModern() {
                   <th>Lokalizacja</th>
                   <th>Strefa</th>
                   <th>Typ problemu</th>
-                  <th>Zrodlo</th>
+                  <th>Proces</th>
                   <th>Status</th>
                   <th>Akcje</th>
                 </tr>
@@ -170,7 +180,7 @@ export default function ProblemsPanelModern() {
                   return (
                     <tr key={row.id}>
                       <td>{formatDate(row.created_at)}</td>
-                      <td>{row.location_code || row.location_id || "BRAK"}</td>
+                      <td>{row.location_code || "BRAK"}</td>
                       <td>{row.zone || "-"}</td>
                       <td>{row.issue_type || "-"}</td>
                       <td>{sourceLabel(row.source_process)}</td>
@@ -229,7 +239,7 @@ export default function ProblemsPanelModern() {
             <div className="process-meta-grid" style={{ marginBottom: 18 }}>
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Lokalizacja</div>
-                <div className="process-meta-item__value">{selectedRow.location_code || selectedRow.location_id || "BRAK"}</div>
+                <div className="process-meta-item__value">{selectedRow.location_code || "BRAK"}</div>
               </div>
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Status</div>
@@ -240,9 +250,20 @@ export default function ProblemsPanelModern() {
                 <div className="process-meta-item__value">{selectedRow.issue_type || "-"}</div>
               </div>
               <div className="process-meta-item">
+                <div className="process-meta-item__label">Proces</div>
+                <div className="process-meta-item__value">{sourceLabel(selectedRow.source_process)}</div>
+              </div>
+              <div className="process-meta-item">
                 <div className="process-meta-item__label">Operator</div>
                 <div className="process-meta-item__value">{selectedRow.operator_email || selectedRow.user_id || "BRAK"}</div>
               </div>
+            </div>
+
+            <div className="process-section-card" style={{ marginBottom: 18 }}>
+              <h3 className="process-section-card__title">Co oznacza proces?</h3>
+              <p className="process-panel__subtitle" style={{ margin: 0 }}>
+                {sourceHint(selectedRow.source_process)}
+              </p>
             </div>
 
             <div className="process-section-card">

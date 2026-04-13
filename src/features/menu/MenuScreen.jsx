@@ -13,6 +13,10 @@ import {
   Settings,
   Shield,
   User,
+  Crown,
+  Briefcase,
+  ClipboardList,
+  UserCog,
 } from "lucide-react";
 
 export default function MenuScreen() {
@@ -21,6 +25,14 @@ export default function MenuScreen() {
   const { endSession, session } = useSession();
 
   const role = user?.role?.toLowerCase();
+  const displayName = user?.name || user?.email?.split('@')[0] || 'Operator';
+  const roleLabelMap = {
+    user: 'Operator',
+    superuser: 'Superuser',
+    office: 'Office',
+    manager: 'Manager',
+    admin: 'Administrator',
+  };
 
   console.log('USER ROLE:', role);
 
@@ -43,48 +55,50 @@ export default function MenuScreen() {
     Ustawienia: Settings,
   };
   const roleIconMap = {
-  user: Play,
-  superuser: Shield,
-  office: Database,
-  manager: BarChart3,
-  admin: Settings,
-};
-const menuItems = [
-  {
-    label: 'Proces',
-    path: '/process',
-    permission: 'process',
-  },
-  {
-    label: 'Historia',
-    path: '/history',
-    permission: 'history',
-  },
-  {
-    label: 'Dane',
-    path: '/data',
-    permission: 'data',
-  },
-  {
-    label: 'Statystyki',
-    path: '/dashboard',
-    permission: 'dashboard',
-  },
-  {
-    label: 'Ustawienia',
-    path: '/admin',
-    permission: 'admin',
-  },
-];
+    user: ClipboardList,
+    superuser: Shield,
+    office: Briefcase,
+    manager: UserCog,
+    admin: Crown,
+  };
+  const menuItems = [
+    {
+      label: 'Proces',
+      path: '/process',
+      permission: 'process',
+    },
+    {
+      label: 'Historia',
+      path: '/history',
+      permission: 'history',
+    },
+    {
+      label: 'Dane',
+      path: '/data',
+      permission: 'data',
+    },
+    {
+      label: 'Statystyki',
+      path: '/dashboard',
+      permission: 'dashboard',
+    },
+    {
+      label: 'Ustawienia',
+      path: '/admin',
+      permission: 'admin',
+    },
+  ];
 
-const filteredMenu = menuItems.filter((item) =>
-  hasPermission(role, item.permission)
-);
- const RoleIcon = roleIconMap[role] || User;
+  const filteredMenu = menuItems.filter((item) =>
+    hasPermission(role, item.permission)
+  );
+  const RoleIcon = roleIconMap[role] || User;
   return (
     <PageShell
-      title={`Hi, ${user?.name || user?.email?.split('@')[0] || 'Operator'}`}
+      title={`Czesc, ${displayName}`}
+      subtitle="Wybierz obszar pracy i przejdz od razu do potrzebnego modulu."
       subtitle="Wybierz obszar pracy i wejdz do aktualnego modułu bez szukania po systemie."
+      {...{ subtitle: "Wybierz obszar pracy i przejdz od razu do potrzebnego modulu." }}
       icon={<RoleIcon size={26} className={`role-icon role-${role}`} />}
       actions={
         <>
@@ -100,12 +114,15 @@ const filteredMenu = menuItems.filter((item) =>
     >
       <div className="menu-summary">
         <div className="menu-summary__avatar">
-          <RoleIcon size={24} />
+          <div className={`menu-summary__avatar-portrait role-${role}`}>
+            <RoleIcon size={28} />
+          </div>
         </div>
         <div>
           <div className="menu-summary__welcome">Twoj panel roboczy</div>
+          <div className="menu-summary__name">{displayName}</div>
           <div className="menu-summary__role">
-            Rola: <strong>{role || 'brak'}</strong>
+            Rola: <strong>{roleLabelMap[role] || role || 'Brak'}</strong>
           </div>
         </div>
       </div>

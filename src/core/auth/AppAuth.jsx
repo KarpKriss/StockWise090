@@ -19,7 +19,7 @@ async function fetchProfileWithRetry(authUser, attempt = 1) {
     const result = await Promise.race([
       supabase
         .from("profiles")
-        .select("user_id, role, site_id, status, lock_until")
+        .select("user_id, role, site_id, status, lock_until, name, operator_number")
         .eq("user_id", authUser.id)
         .maybeSingle(),
       timeout,
@@ -44,9 +44,11 @@ function buildUser(authUser, profile) {
   return {
     id: authUser.id,
     email: authUser.email,
+    name: profile.name || authUser.user_metadata?.name || null,
     role: profile.role,
     site_id: profile.site_id,
     status: profile.status,
+    operator_number: profile.operator_number || null,
   };
 }
 
