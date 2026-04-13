@@ -6,12 +6,24 @@ export default function PageShell({
   subtitle,
   children,
   backTo = null,
+  onBack = null,
   backLabel = "Powrot",
   actions = null,
   icon = null,
   compact = false,
 }) {
   const navigate = useNavigate();
+
+  function handleBackClick() {
+    if (typeof onBack === "function") {
+      onBack();
+      return;
+    }
+
+    if (backTo !== null) {
+      navigate(typeof backTo === "number" ? backTo : backTo);
+    }
+  }
 
   return (
     <div className={`page-shell ${compact ? "page-shell-compact" : ""}`}>
@@ -20,7 +32,7 @@ export default function PageShell({
           <button
             type="button"
             className="app-icon-button"
-            onClick={() => (typeof backTo === "number" ? navigate(backTo) : navigate(backTo))}
+            onClick={handleBackClick}
             aria-label={backLabel}
           >
             <ChevronLeft size={18} />

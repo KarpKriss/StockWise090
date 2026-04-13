@@ -68,7 +68,7 @@ function SummaryCard({ zone, progress, location }) {
 export default function EmptyLocationProcessModern() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { session, isActive, addOperation } = useSession();
+  const { session, isActive, addOperation, endSession } = useSession();
   const [zones, setZones] = useState([]);
   const [completedZones, setCompletedZones] = useState([]);
   const [selectedZone, setSelectedZone] = useState("");
@@ -215,6 +215,25 @@ export default function EmptyLocationProcessModern() {
     setProblemNote("");
     setError("");
     setStage("zones");
+  }
+
+  async function handleExitProcess() {
+    try {
+      setSubmitting(true);
+      setError("");
+
+      if (lockedLocationIdRef.current) {
+        await releaseLocationWork({ locationId: lockedLocationIdRef.current });
+        lockedLocationIdRef.current = null;
+      }
+
+      await endSession();
+      navigate("/process");
+    } catch (err) {
+      setError(err.message || "Nie udalo sie zamknac procesu.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleScanConfirm() {
@@ -395,6 +414,7 @@ export default function EmptyLocationProcessModern() {
       subtitle="Sprawdzaj lokalizacje jedna po drugiej, potwierdzaj puste miejsca i raportuj wyjatki bez opuszczania flow."
       icon={<Warehouse size={26} />}
       backTo="/process"
+      onBack={handleExitProcess}
       backLabel="Powrot do wyboru procesu"
     >
       <div className="process-layout">
@@ -442,8 +462,8 @@ export default function EmptyLocationProcessModern() {
             )}
 
             <div className="process-actions">
-              <Button variant="secondary" size="lg" onClick={() => navigate("/menu")}>
-                Powrot do menu
+              <Button variant="secondary" size="lg" loading={submitting} onClick={handleExitProcess}>
+                Zakoncz i wroc do wyboru procesu
               </Button>
             </div>
           </div>
@@ -660,8 +680,8 @@ export default function EmptyLocationProcessModern() {
               <Button size="lg" onClick={resetToZonePicker}>
                 Rozpocznij nastepna strefe
               </Button>
-              <Button variant="secondary" size="lg" onClick={() => navigate("/menu")}>
-                Powrot do menu
+              <Button variant="secondary" size="lg" loading={submitting} onClick={handleExitProcess}>
+                Zakoncz i wroc do wyboru procesu
               </Button>
             </div>
           </div>

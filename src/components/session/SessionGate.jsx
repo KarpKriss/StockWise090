@@ -1,4 +1,29 @@
-import { useSession } from '../../core/session/AppSession';
+import { AlertTriangle, Laptop, PauseCircle, PlayCircle, ShieldAlert, Smartphone } from "lucide-react";
+import { useSession } from "../../core/session/AppSession";
+import PageShell from "../layout/PageShell";
+import Button from "../ui/Button";
+
+function formatSessionDate(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
+function detectDeviceLabel(device) {
+  const source = String(device || "").toLowerCase();
+
+  if (!source) {
+    return "Nieznane urzadzenie";
+  }
+
+  if (source.includes("android") || source.includes("iphone") || source.includes("mobile")) {
+    return "Urzadzenie mobilne";
+  }
+
+  return "Komputer / przegladarka";
+}
 
 export default function SessionGate({ children }) {
   const {
@@ -10,92 +35,101 @@ export default function SessionGate({ children }) {
     logoutAfterConflict,
   } = useSession();
 
-  // 🔵 RECOVERY SCREEN
   if (pendingSession) {
     const isPaused = String(pendingSession.status || "").toLowerCase() === "paused";
+    const DeviceIcon = detectDeviceLabel(pendingSession.device) === "Urzadzenie mobilne" ? Smartphone : Laptop;
 
     return (
-      <div style={styles.fullscreen}>
-        <h2>{isPaused ? "Wykryto wstrzymana sesje" : "Wykryto niedokończoną sesję"}</h2>
+      <PageShell
+        compact
+        title={isPaused ? "Masz wstrzymana sesje" : "Wykryto niedokonczona sesje"}
+        subtitle="Mozesz bezpiecznie wznowic poprzednia prace albo zamknac stara sesje i zaczac od nowa."
+        icon={isPaused ? <PauseCircle size={26} /> : <AlertTriangle size={26} />}
+      >
+        <div className="app-card process-stage-card">
+          <div className="process-stage-header">
+            <div className="process-stage-header__icon">
+              <DeviceIcon size={22} />
+            </div>
+            <div className="process-stage-header__text">
+              <h2>{isPaused ? "Sesja oczekuje na wznowienie" : "Ostatnia sesja nie zostala zamknieta"}</h2>
+              <p>
+                Zanim rozpoczniesz nowa prace, wybierz co chcesz zrobic z poprzednia sesja.
+              </p>
+            </div>
+          </div>
 
-        <p>
-          Sesja rozpoczęta: {new Date(pendingSession.created_at).toLocaleString()}
-        </p>
+          <div className="process-meta-grid">
+            <div className="process-meta-item">
+              <div className="process-meta-item__label">Status</div>
+              <div className="process-meta-item__value">{isPaused ? "Wstrzymana" : "Niedokonczona"}</div>
+            </div>
+            <div className="process-meta-item">
+              <div className="process-meta-item__label">Rozpoczeta</div>
+              <div className="process-meta-item__value">{formatSessionDate(pendingSession.created_at)}</div>
+            </div>
+            <div className="process-meta-item">
+              <div className="process-meta-item__label">Urzadzenie</div>
+              <div className="process-meta-item__value">{detectDeviceLabel(pendingSession.device)}</div>
+            </div>
+          </div>
 
-        <p>
-          Urządzenie: {pendingSession.device}
-        </p>
+          {pendingSession.device ? (
+            <div className="process-section-card">
+              <h3 className="process-section-card__title">Szczegoly techniczne</h3>
+              <p className="process-panel__subtitle" style={{ margin: 0 }}>
+                {pendingSession.device}
+              </p>
+            </div>
+          ) : null}
 
-        <div style={styles.actions}>
-          <button onClick={resumeSession}>
-            Wznów sesję
-          </button>
-
-          <button onClick={discardSession}>
-            Zamknij i rozpocznij nową
-          </button>
+          <div className="process-actions">
+            <Button size="lg" onClick={resumeSession}>
+              <PlayCircle size={16} />
+              Wznow sesje
+            </Button>
+            <Button variant="secondary" size="lg" onClick={discardSession}>
+              Zamknij i rozpocznij nowa
+            </Button>
+          </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
-  // 🔴 CONFLICT MODAL
   if (sessionConflict) {
     return (
-      <div style={styles.overlay}>
-        <div style={styles.modal}>
-          <h2>Sesja aktywna na innym urządzeniu</h2>
+      <PageShell
+        compact
+        title="Sesja aktywna na innym urzadzeniu"
+        subtitle="Wykryto, ze to konto jest aktualnie uzywane w innym miejscu. Wybierz bezpieczna akcje."
+        icon={<ShieldAlert size={26} />}
+      >
+        <div className="app-card process-stage-card">
+          <div className="process-stage-header">
+            <div className="process-stage-header__icon">
+              <ShieldAlert size={22} />
+            </div>
+            <div className="process-stage-header__text">
+              <h2>Potwierdz dalsze dzialanie</h2>
+              <p>
+                Mozesz przejac sesje na tym urzadzeniu albo wylogowac sie, aby nie ryzykowac konfliktu danych.
+              </p>
+            </div>
+          </div>
 
-          <p>
-            Twoje konto zostało użyte gdzie indziej.
-          </p>
-
-          <div style={styles.actions}>
-            <button onClick={resolveConflict}>
-              Przejmij sesję
-            </button>
-
-            <button onClick={logoutAfterConflict}>
+          <div className="process-actions">
+            <Button size="lg" onClick={resolveConflict}>
+              Przejmij sesje
+            </Button>
+            <Button variant="secondary" size="lg" onClick={logoutAfterConflict}>
               Wyloguj
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return children;
 }
-
-const styles = {
-  fullscreen: {
-    height: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '16px',
-  },
-  overlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'rgba(0,0,0,0.6)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modal: {
-    background: 'white',
-    padding: '24px',
-    borderRadius: '8px',
-    textAlign: 'center',
-  },
-  actions: {
-    display: 'flex',
-    gap: '12px',
-    marginTop: '16px',
-  },
-};
