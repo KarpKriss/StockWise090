@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import LoginScreen from '../features/auth/LoginScreenModern';
-import MenuScreen from '../features/menu/MenuScreen';
+import MenuScreen from '../features/menu/MenuScreenMain';
 import ProcessContainer from '../features/process/ProcessContainer';
 import DataMenu from '../features/data/DataMenuModern';
 import ProtectedRoute from './ProtectedRoute';
