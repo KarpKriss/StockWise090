@@ -1017,9 +1017,14 @@ table th {
   margin-bottom: 18px;
 }
 
-.import-config-layout {
+.import-config-editor-card {
+  overflow: hidden;
+}
+
+.import-config-editor-layout {
+  display: grid;
   align-items: start;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -1038,19 +1043,16 @@ table th {
 }
 
 .import-mapping-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(150px, 180px) minmax(190px, 1fr);
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   align-items: stretch;
   padding: 16px;
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(247, 249, 255, 0.9));
   border: 1px solid rgba(84, 98, 140, 0.1);
   box-shadow: 0 10px 24px rgba(64, 82, 130, 0.06);
-}
-
-.import-mapping-row--export {
-  grid-template-columns: minmax(120px, 150px) minmax(190px, 1fr) minmax(190px, 1fr);
+  overflow: hidden;
 }
 
 .import-mapping-row__title {
@@ -1066,6 +1068,20 @@ table th {
   justify-content: center;
   min-height: 82px;
   padding: 4px 2px;
+}
+
+.import-mapping-row__controls {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.import-mapping-row__controls--import {
+  grid-template-columns: minmax(170px, 220px) minmax(0, 1fr);
+}
+
+.import-mapping-row__controls--export {
+  grid-template-columns: minmax(130px, 170px) minmax(170px, 1fr) minmax(170px, 220px);
 }
 
 .import-mapping-row__control {
@@ -1153,9 +1169,9 @@ table th {
     grid-template-columns: 1fr;
   }
 
-  .import-config-layout,
-  .import-mapping-row,
-  .import-mapping-row--export {
+  .import-config-editor-layout,
+  .import-mapping-row__controls--import,
+  .import-mapping-row__controls--export {
     grid-template-columns: 1fr;
   }
 
@@ -1165,6 +1181,20 @@ table th {
 
   .keypad {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .import-config-editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .import-mapping-row__controls--export {
+    grid-template-columns: minmax(120px, 170px) minmax(160px, 1fr);
+  }
+
+  .import-mapping-row__controls--export .import-mapping-row__control:last-child {
+    grid-column: 1 / -1;
   }
 }
 
