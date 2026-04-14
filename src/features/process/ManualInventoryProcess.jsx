@@ -55,6 +55,7 @@ export default function ManualInventoryProcess() {
   const [locationInput, setLocationInput] = useState("");
   const [currentLocation, setCurrentLocation] = useState(null);
   const [currentZone, setCurrentZone] = useState("");
+  const [sessionZone, setSessionZone] = useState("");
   const [locationStock, setLocationStock] = useState([]);
   const [form, setForm] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(true);
@@ -233,9 +234,12 @@ export default function ManualInventoryProcess() {
       const location = await validateManualLocation({
         code: locationInput,
         siteId: user?.site_id,
-        expectedZone: currentZone || null,
+        expectedZone: sessionZone || null,
         currentUserId: user.id,
+        retries: Number(validationConfig.fetchRetries || 2),
       });
+
+      const resolvedZone = sessionZone || location.zone || "";
 
       if (lockedLocationIdRef.current && lockedLocationIdRef.current !== location.id) {
         await releaseManualLocation({ locationId: lockedLocationIdRef.current });
@@ -255,9 +259,12 @@ export default function ManualInventoryProcess() {
       lockedLocationIdRef.current = location.id;
       locationStartedAtRef.current = Date.now();
       setCurrentLocation(location);
-      setCurrentZone((current) => current || location.zone || "");
+      setSessionZone(resolvedZone);
+      setCurrentZone(resolvedZone);
       setLocationInput(location.code || "");
-      setLocationStock(await fetchLocationStockSnapshot(location.id));
+      setLocationStock(
+        await fetchLocationStockSnapshot(location.id, Number(validationConfig.fetchRetries || 2))
+      );
       setSavedCountForLocation(0);
       setProblemNote("");
       resetForm();
@@ -503,7 +510,7 @@ export default function ManualInventoryProcess() {
       lockedLocationIdRef.current = null;
       locationStartedAtRef.current = null;
       setCurrentLocation(null);
-      setCurrentZone("");
+      setCurrentZone(sessionZone || "");
       setLocationStock([]);
       setLocationInput("");
       setSavedCountForLocation(0);
@@ -521,7 +528,7 @@ export default function ManualInventoryProcess() {
   async function handleAbandonLocation() {
     if (!lockedLocationIdRef.current) {
       setCurrentLocation(null);
-      setCurrentZone("");
+      setCurrentZone(sessionZone || "");
       setLocationStock([]);
       setLocationInput("");
       setSavedCountForLocation(0);
@@ -538,7 +545,7 @@ export default function ManualInventoryProcess() {
       lockedLocationIdRef.current = null;
       locationStartedAtRef.current = null;
       setCurrentLocation(null);
-      setCurrentZone("");
+      setCurrentZone(sessionZone || "");
       setLocationStock([]);
       setLocationInput("");
       setSavedCountForLocation(0);
@@ -573,7 +580,7 @@ export default function ManualInventoryProcess() {
       lockedLocationIdRef.current = null;
       locationStartedAtRef.current = null;
       setCurrentLocation(null);
-      setCurrentZone("");
+      setCurrentZone(sessionZone || "");
       setLocationStock([]);
       setLocationInput("");
       setSavedCountForLocation(0);
@@ -592,12 +599,16 @@ export default function ManualInventoryProcess() {
   async function handleEndSession() {
     await handleAbandonLocation();
     await endSession();
+    setSessionZone("");
+    setCurrentZone("");
     navigate("/menu");
   }
 
   async function handlePauseSession() {
     await handleAbandonLocation();
     await pauseSession();
+    setSessionZone("");
+    setCurrentZone("");
     navigate("/menu");
   }
 

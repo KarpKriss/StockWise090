@@ -67,6 +67,7 @@ export async function validateManualLocation({
   siteId,
   expectedZone,
   currentUserId,
+  retries = 2,
 }) {
   const normalizedCode = String(code || "").trim();
 
@@ -94,7 +95,7 @@ export async function validateManualLocation({
     }
 
     return data;
-  });
+  }, retries);
 
   if (!location) {
     throw new Error("Lokalizacja nie istnieje w mapie magazynu");
@@ -204,18 +205,22 @@ export async function resolveManualProduct({ sku, ean }) {
   return data;
 }
 
-export async function fetchLocationStockSnapshot(locationId) {
-  const { data, error } = await supabase
-    .from("stock")
-    .select("quantity, product_id, products:product_id(id, sku, ean)")
-    .eq("location_id", locationId);
+export async function fetchLocationStockSnapshot(locationId, retries = 2) {
+  const data = await withRetries(async () => {
+    const { data: rows, error } = await supabase
+      .from("stock")
+      .select("quantity, product_id, products:product_id(id, sku, ean)")
+      .eq("location_id", locationId);
 
-  if (error) {
-    console.error("LOCATION STOCK SNAPSHOT ERROR:", error);
-    throw new Error(error.message || "Blad pobierania stocku lokalizacji");
-  }
+    if (error) {
+      console.error("LOCATION STOCK SNAPSHOT ERROR:", error);
+      throw new Error(error.message || "Blad pobierania stocku lokalizacji");
+    }
 
-  return (data || []).map((row) => ({
+    return rows || [];
+  }, retries);
+
+  return data.map((row) => ({
     productId: row.product_id,
     sku: row.products?.sku || null,
     ean: row.products?.ean || null,
