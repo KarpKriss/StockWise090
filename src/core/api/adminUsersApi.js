@@ -4,6 +4,8 @@ function normalizeAdminUser(entry = {}) {
   return {
     ...entry,
     operatorNumber: entry.operatorNumber ?? entry.operator_number ?? "",
+    last_sign_in_at:
+      entry.last_sign_in_at ?? entry.lastSignInAt ?? entry.last_login_at ?? null,
     latest_session_status:
       entry.latest_session_status ?? entry.latestSessionStatus ?? null,
     last_activity: entry.last_activity ?? entry.lastActivity ?? null,
@@ -63,10 +65,25 @@ async function invokeAdminUsers(action, payload = {}) {
 export async function checkAdminUsersBackendHealth() {
   try {
     const data = await invokeAdminUsers("health");
-    return Boolean(data?.ok);
+    return {
+      ok: Boolean(data?.ok),
+      capabilities: data?.capabilities || {},
+      serviceRoleConfigured: Boolean(data?.serviceRoleConfigured ?? true),
+    };
   } catch (error) {
-    return false;
+    return {
+      ok: false,
+      capabilities: {},
+      serviceRoleConfigured: false,
+    };
   }
+}
+
+async function fetchAdminUsersListFromEdge() {
+  const data = await invokeAdminUsers("list");
+  return (data?.users || []).map((entry) =>
+    normalizeAdminUser({ ...entry, backendMode: "edge" }),
+  );
 }
 
 
@@ -146,13 +163,47 @@ function requireEdgeFunctionFeature(message) {
 }
 
 export async function fetchAdminUsersList() {
+  let baseUsers = [];
+
   try {
     const data = await invokeAdminRpc("get_admin_users_overview");
-    return (data || []).map((entry) =>
+    baseUsers = (data || []).map((entry) =>
       normalizeAdminUser({ ...entry, backendMode: "rpc" })
     );
   } catch (error) {
-    return fetchAdminUsersListFallback();
+    baseUsers = await fetchAdminUsersListFallback();
+  }
+
+  try {
+    const edgeUsers = await fetchAdminUsersListFromEdge();
+    const edgeByUserId = new Map(
+      edgeUsers
+        .filter((entry) => entry.user_id)
+        .map((entry) => [entry.user_id, entry]),
+    );
+
+    return baseUsers.map((entry) => {
+      const edgeEntry = edgeByUserId.get(entry.user_id);
+
+      if (!edgeEntry) {
+        return entry;
+      }
+
+      return normalizeAdminUser({
+        ...entry,
+        email: edgeEntry.email || entry.email,
+        name: edgeEntry.name || entry.name,
+        alias: edgeEntry.alias || entry.alias,
+        last_sign_in_at: edgeEntry.last_sign_in_at || entry.last_sign_in_at,
+        last_activity: edgeEntry.last_activity || entry.last_activity,
+        latest_session_status:
+          edgeEntry.latest_session_status || entry.latest_session_status,
+        backendMode:
+          entry.backendMode === "rpc" ? "rpc+edge" : edgeEntry.backendMode || entry.backendMode,
+      });
+    });
+  } catch (error) {
+    return baseUsers;
   }
 }
 

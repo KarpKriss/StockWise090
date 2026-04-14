@@ -72,6 +72,10 @@ function HealthMetricCard({ icon, label, value, hint, tone = "neutral" }) {
   );
 }
 
+function getProcessTone(status) {
+  return String(status || "").toLowerCase() === "connected" ? "healthy" : "warning";
+}
+
 function AlertRow({ item }) {
   const meta = getSeverityMeta(item.severity);
 
@@ -138,6 +142,7 @@ export default function SystemStatusModern() {
   const alerts = Array.isArray(status?.alerts) ? status.alerts : [];
   const importLogs = Array.isArray(status?.importLogs) ? status.importLogs : [];
   const errorLogs = Array.isArray(status?.errorLogs) ? status.errorLogs : [];
+  const processStatuses = Array.isArray(status?.processStatuses) ? status.processStatuses : [];
 
   const groupedAlerts = useMemo(() => {
     const critical = alerts.filter((item) =>
@@ -316,6 +321,40 @@ export default function SystemStatusModern() {
               hint="Lokalizacje in_progress bez zywej sesji lub z przeterminowanym lockiem."
               tone={Number(summary.stale_locations || 0) > 0 ? "critical" : "healthy"}
             />
+          </div>
+
+          <div className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>Status procesow systemowych</h3>
+                <p>Techniczne zdrowie backendu administratorskiego, RPC i logowania sygnalow pomocniczych.</p>
+              </div>
+            </div>
+
+            {processStatuses.length ? (
+              <div className="system-status-grid">
+                {processStatuses.map((item) => (
+                  <HealthMetricCard
+                    key={item.code}
+                    icon={
+                      getProcessTone(item.status) === "healthy" ? (
+                        <CheckCircle2 size={20} />
+                      ) : (
+                        <AlertTriangle size={20} />
+                      )
+                    }
+                    label={item.label}
+                    value={String(item.status || "unknown")}
+                    hint={item.description}
+                    tone={getProcessTone(item.status)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="app-empty-state">
+                Brak szczegolowych danych o procesach systemowych.
+              </div>
+            )}
           </div>
 
           <div className="app-card">

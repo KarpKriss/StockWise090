@@ -7,7 +7,7 @@ export async function fetchSystemStatus() {
   const summaryResult = await supabase.rpc("get_admin_system_health_summary");
   const alertsResult = await supabase.rpc("get_admin_system_health_alerts");
 
-  const [importLogsResult, totalUsersResult, adminUsersEdgeHealthy, errorLogs] = await Promise.all([
+  const [importLogsResult, totalUsersResult, adminUsersEdgeHealth, errorLogs] = await Promise.all([
     supabase
       .from("import_logs")
       .select("id, user_id, type, created_at")
@@ -17,6 +17,41 @@ export async function fetchSystemStatus() {
     checkAdminUsersBackendHealth(),
     fetchErrorLogs({ limit: 8 }).catch(() => []),
   ]);
+
+  const processStatuses = [
+    {
+      code: "rpc_summary",
+      label: "RPC health summary",
+      status: !summaryResult.error && !alertsResult.error ? "connected" : "degraded",
+      description: !summaryResult.error && !alertsResult.error
+        ? "Funkcje zdrowia systemu odpowiadaja poprawnie."
+        : "Co najmniej jedna funkcja zdrowia systemu nie zwrocila danych.",
+    },
+    {
+      code: "admin_users_backend",
+      label: "Backend admin-users",
+      status: adminUsersEdgeHealth.ok ? "connected" : "degraded",
+      description: adminUsersEdgeHealth.ok
+        ? "Edge function administratorska jest dostepna dla create/reset/delete."
+        : "Edge function administratorska nie odpowiada lub nie ma pelnej konfiguracji.",
+    },
+    {
+      code: "import_logs",
+      label: "Logi importow",
+      status: importLogsResult.error ? "degraded" : "connected",
+      description: importLogsResult.error
+        ? "Panel nie mogl pobrac ostatnich importow danych."
+        : "Logi importow sa dostepne dla administratora.",
+    },
+    {
+      code: "client_error_logs",
+      label: "Log bledow klienta",
+      status: Array.isArray(errorLogs) ? "connected" : "degraded",
+      description: Array.isArray(errorLogs)
+        ? "Panel ma dostep do zarejestrowanych bledow aplikacyjnych."
+        : "Nie udalo sie pobrac logow bledow aplikacji.",
+    },
+  ];
 
   if (!summaryResult.error && !alertsResult.error) {
     const summaryRow = Array.isArray(summaryResult.data)
@@ -29,11 +64,12 @@ export async function fetchSystemStatus() {
         ...(summaryRow || {}),
         app_version: APP_VERSION,
         total_users: Array.isArray(totalUsersResult) ? totalUsersResult.length : 0,
-        api_status: adminUsersEdgeHealthy ? "connected" : "degraded",
+        api_status: adminUsersEdgeHealth.ok ? "connected" : "degraded",
       },
       alerts: Array.isArray(alertsResult.data) ? alertsResult.data : [],
       importLogs: importLogsResult.error ? [] : importLogsResult.data || [],
       errorLogs: errorLogs || [],
+      processStatuses,
     };
   }
 
@@ -56,7 +92,7 @@ export async function fetchSystemStatus() {
           overall_status: String(data.overall_status || data.status || "warning").toLowerCase(),
           overall_label: data.overall_label || data.label || "Status niepelny",
           database_status: data.database_status || "connected",
-          api_status: adminUsersEdgeHealthy ? "connected" : "degraded",
+          api_status: adminUsersEdgeHealth.ok ? "connected" : "degraded",
           app_version: APP_VERSION,
           total_users: Array.isArray(totalUsersResult) ? totalUsersResult.length : 0,
           active_users: Number(data.active_users || 0),
@@ -75,5 +111,6 @@ export async function fetchSystemStatus() {
     alerts: [],
     importLogs: importLogsResult.error ? [] : importLogsResult.data || [],
     errorLogs: errorLogs || [],
+    processStatuses,
   };
 }

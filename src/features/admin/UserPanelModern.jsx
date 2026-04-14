@@ -6,6 +6,7 @@ import Input from "../../components/ui/Input";
 import {
   createAdminUserAccount,
   deleteAdminUserAccount,
+  checkAdminUsersBackendHealth,
   fetchAdminUsersList,
   resetAdminUserPassword,
   updateAdminUserProfile,
@@ -28,6 +29,14 @@ const INITIAL_PASSWORD_FORM = {
 function formatLastActivity(value) {
   if (!value) {
     return "Brak aktywnosci";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
+function formatLastLogin(value) {
+  if (!value) {
+    return "Brak logowania";
   }
 
   return new Date(value).toLocaleString();
@@ -61,7 +70,9 @@ export default function UserPanelModern() {
       setLoading(true);
       const users = await fetchAdminUsersList();
       setRows(users);
-      setRpcAvailable(users.some((row) => row.backendMode === "rpc"));
+      setRpcAvailable(
+        users.some((row) => String(row.backendMode || "").includes("rpc")),
+      );
       setError("");
     } catch (err) {
       setRpcAvailable(false);
@@ -73,6 +84,20 @@ export default function UserPanelModern() {
 
   useEffect(() => {
     loadUsers();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    checkAdminUsersBackendHealth().then((result) => {
+      if (!cancelled) {
+        setEdgeAvailable(result.ok);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filteredRows = useMemo(() => {
@@ -89,6 +114,20 @@ export default function UserPanelModern() {
       return matchesSearch && matchesStatus;
     });
   }, [rows, search, statusFilter]);
+
+  const userSummary = useMemo(() => {
+    const totalUsers = rows.length;
+    const activeAccounts = rows.filter((row) => row.status === "active").length;
+    const activeSessions = rows.filter((row) => row.latest_session_status === "active").length;
+    const recentLogins = rows.filter((row) => row.last_sign_in_at).length;
+
+    return {
+      totalUsers,
+      activeAccounts,
+      activeSessions,
+      recentLogins,
+    };
+  }, [rows]);
 
   const usesFallbackBackend = rows.some((row) => row.backendMode === "fallback");
 
@@ -269,6 +308,39 @@ export default function UserPanelModern() {
       ) : null}
 
       {!loading && !error ? (
+        <div className="system-status-grid" style={{ marginBottom: 16 }}>
+          <div className="system-status-metric system-status-metric--neutral">
+            <div>
+              <div className="system-status-metric__label">Liczba kont</div>
+              <div className="system-status-metric__value">{userSummary.totalUsers}</div>
+              <div className="system-status-metric__hint">Wszystkie profile widoczne w panelu.</div>
+            </div>
+          </div>
+          <div className="system-status-metric system-status-metric--healthy">
+            <div>
+              <div className="system-status-metric__label">Aktywne konta</div>
+              <div className="system-status-metric__value">{userSummary.activeAccounts}</div>
+              <div className="system-status-metric__hint">Konta z dostepem do logowania.</div>
+            </div>
+          </div>
+          <div className="system-status-metric system-status-metric--neutral">
+            <div>
+              <div className="system-status-metric__label">Aktywne sesje</div>
+              <div className="system-status-metric__value">{userSummary.activeSessions}</div>
+              <div className="system-status-metric__hint">Sesje aktualnie oznaczone jako active.</div>
+            </div>
+          </div>
+          <div className="system-status-metric system-status-metric--neutral">
+            <div>
+              <div className="system-status-metric__label">Konta z logowaniem</div>
+              <div className="system-status-metric__value">{userSummary.recentLogins}</div>
+              <div className="system-status-metric__hint">Profile, dla ktorych mamy timestamp ostatniego logowania.</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!loading && !error ? (
         <div className="app-card">
           <div className="app-module-panel__header" style={{ marginBottom: 14 }}>
             <div>
@@ -288,6 +360,7 @@ export default function UserPanelModern() {
                   <th>Uzytkownik</th>
                   <th>Rola</th>
                   <th>Status</th>
+                  <th>Ostatnie logowanie</th>
                   <th>Ostatnia aktywnosc</th>
                   <th>Numer operatora</th>
                   <th>Sesja</th>
@@ -314,6 +387,7 @@ export default function UserPanelModern() {
                         {row.status === "active" ? "Aktywne" : "Nieaktywne"}
                       </span>
                     </td>
+                    <td>{formatLastLogin(row.last_sign_in_at)}</td>
                     <td>{formatLastActivity(row.last_activity)}</td>
                     <td>{row.operatorNumber || "-"}</td>
                     <td>
@@ -337,7 +411,7 @@ export default function UserPanelModern() {
 
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="app-empty-state">
+                    <td colSpan={8} className="app-empty-state">
                       Brak uzytkownikow spelniajacych filtry.
                     </td>
                   </tr>
@@ -518,6 +592,15 @@ export default function UserPanelModern() {
                 }
                 placeholder="Np. OP-014"
               />
+              <div className="app-card" style={{ padding: 16 }}>
+                <div className="app-field__label">Ostatnie logowanie</div>
+                <div style={{ marginTop: 8, fontWeight: 700 }}>
+                  {formatLastLogin(selectedUser.last_sign_in_at)}
+                </div>
+                <div className="helper-note" style={{ marginTop: 8 }}>
+                  Ta data pochodzi z warstwy logowania Supabase Auth.
+                </div>
+              </div>
               <div className="app-card" style={{ padding: 16 }}>
                 <div className="app-field__label">Ostatnia sesja</div>
                 <div style={{ marginTop: 8, fontWeight: 700 }}>
