@@ -1,8 +1,22 @@
 import { supabase } from "./supabaseClient";
+import { APP_VERSION } from "../config/appMeta";
+import { checkAdminUsersBackendHealth, fetchAdminUsersList } from "./adminUsersApi";
+import { fetchErrorLogs } from "./logsApi";
 
 export async function fetchSystemStatus() {
   const summaryResult = await supabase.rpc("get_admin_system_health_summary");
   const alertsResult = await supabase.rpc("get_admin_system_health_alerts");
+
+  const [importLogsResult, totalUsersResult, adminUsersEdgeHealthy, errorLogs] = await Promise.all([
+    supabase
+      .from("import_logs")
+      .select("id, user_id, type, created_at")
+      .order("created_at", { ascending: false })
+      .limit(8),
+    fetchAdminUsersList().catch(() => []),
+    checkAdminUsersBackendHealth(),
+    fetchErrorLogs({ limit: 8 }).catch(() => []),
+  ]);
 
   if (!summaryResult.error && !alertsResult.error) {
     const summaryRow = Array.isArray(summaryResult.data)
@@ -11,8 +25,15 @@ export async function fetchSystemStatus() {
 
     return {
       source: "rpc",
-      summary: summaryRow || null,
+      summary: {
+        ...(summaryRow || {}),
+        app_version: APP_VERSION,
+        total_users: Array.isArray(totalUsersResult) ? totalUsersResult.length : 0,
+        api_status: adminUsersEdgeHealthy ? "connected" : "degraded",
+      },
       alerts: Array.isArray(alertsResult.data) ? alertsResult.data : [],
+      importLogs: importLogsResult.error ? [] : importLogsResult.data || [],
+      errorLogs: errorLogs || [],
     };
   }
 
@@ -35,6 +56,9 @@ export async function fetchSystemStatus() {
           overall_status: String(data.overall_status || data.status || "warning").toLowerCase(),
           overall_label: data.overall_label || data.label || "Status niepelny",
           database_status: data.database_status || "connected",
+          api_status: adminUsersEdgeHealthy ? "connected" : "degraded",
+          app_version: APP_VERSION,
+          total_users: Array.isArray(totalUsersResult) ? totalUsersResult.length : 0,
           active_users: Number(data.active_users || 0),
           active_sessions: Number(data.active_sessions || 0),
           paused_sessions: Number(data.paused_sessions || 0),
@@ -49,5 +73,7 @@ export async function fetchSystemStatus() {
         }
       : null,
     alerts: [],
+    importLogs: importLogsResult.error ? [] : importLogsResult.data || [],
+    errorLogs: errorLogs || [],
   };
 }

@@ -3,10 +3,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   Database,
+  Download,
   OctagonAlert,
   PauseCircle,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Users,
   Waypoints,
 } from "lucide-react";
@@ -134,6 +136,8 @@ export default function SystemStatusModern() {
 
   const summary = status?.summary || null;
   const alerts = Array.isArray(status?.alerts) ? status.alerts : [];
+  const importLogs = Array.isArray(status?.importLogs) ? status.importLogs : [];
+  const errorLogs = Array.isArray(status?.errorLogs) ? status.errorLogs : [];
 
   const groupedAlerts = useMemo(() => {
     const critical = alerts.filter((item) =>
@@ -211,6 +215,27 @@ export default function SystemStatusModern() {
               value={String(summary.database_status || "unknown")}
               hint="Jesli panel zwrocil dane z RPC, polaczenie z baza dziala."
               tone={String(summary.database_status || "").toLowerCase() === "connected" ? "healthy" : "warning"}
+            />
+            <HealthMetricCard
+              icon={<ShieldCheck size={20} />}
+              label="Status API"
+              value={String(summary.api_status || "unknown")}
+              hint="Stan backendu administratorskiego i kluczowych wywolan RPC."
+              tone={String(summary.api_status || "").toLowerCase() === "connected" ? "healthy" : "warning"}
+            />
+            <HealthMetricCard
+              icon={<ActivitySquare size={20} />}
+              label="Wersja aplikacji"
+              value={String(summary.app_version || "-")}
+              hint="Wersja frontendowego buildu zgodna z package.json."
+              tone="neutral"
+            />
+            <HealthMetricCard
+              icon={<Users size={20} />}
+              label="Liczba uzytkownikow"
+              value={formatMetric(summary.total_users)}
+              hint="Liczba kont widocznych w panelu administracyjnym."
+              tone="neutral"
             />
             <HealthMetricCard
               icon={<Users size={20} />}
@@ -343,6 +368,81 @@ export default function SystemStatusModern() {
               <div className="app-empty-state">
                 Backend nie zwrocil listy szczegolowych sygnalow. Widoczne sa tylko metryki zbiorcze.
               </div>
+            )}
+          </div>
+
+          <div className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>Status importow danych</h3>
+                <p>Ostatnie importy produktow, stocku, cen i mapy magazynu widoczne dla administratora.</p>
+              </div>
+            </div>
+
+            {importLogs.length ? (
+              <div className="dashboard-table-scroll">
+                <table className="app-table">
+                  <thead>
+                    <tr>
+                      <th>Czas</th>
+                      <th>Typ importu</th>
+                      <th>User ID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importLogs.map((row) => (
+                      <tr key={row.id}>
+                        <td>{formatDateTime(row.created_at)}</td>
+                        <td>
+                          <span className="history-status-chip">
+                            <Download size={14} style={{ marginRight: 6 }} />
+                            {row.type || "-"}
+                          </span>
+                        </td>
+                        <td>{row.user_id || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="app-empty-state">Brak ostatnich importow danych.</div>
+            )}
+          </div>
+
+          <div className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>Log bledow systemu</h3>
+                <p>Ostatnie bledy aplikacyjne i fetch failures widoczne bez przechodzenia do osobnej zakladki logow.</p>
+              </div>
+            </div>
+
+            {errorLogs.length ? (
+              <div className="dashboard-table-scroll">
+                <table className="app-table">
+                  <thead>
+                    <tr>
+                      <th>Czas</th>
+                      <th>Obszar</th>
+                      <th>Komunikat</th>
+                      <th>Uzytkownik</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {errorLogs.map((row) => (
+                      <tr key={row.id}>
+                        <td>{formatDateTime(row.timestamp)}</td>
+                        <td>{row.entity || "-"}</td>
+                        <td>{row.message || "-"}</td>
+                        <td>{row.userName || row.userEmail || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="app-empty-state">Brak zarejestrowanych bledow aplikacyjnych.</div>
             )}
           </div>
         </>

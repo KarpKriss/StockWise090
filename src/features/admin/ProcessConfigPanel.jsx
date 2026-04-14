@@ -12,6 +12,7 @@ import {
   fetchManualProcessAdminConfig,
   saveManualProcessAdminConfig,
 } from "../../core/api/processConfigApi";
+import { fetchConfigChangeLogs } from "../../core/api/logsApi";
 
 function ToggleField({ checked, onChange, disabled = false, label }) {
   return (
@@ -35,6 +36,7 @@ export default function ProcessConfigPanel() {
   const [error, setError] = useState("");
   const [saveInfo, setSaveInfo] = useState("");
   const [dataSource, setDataSource] = useState("default");
+  const [historyRows, setHistoryRows] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +66,24 @@ export default function ProcessConfigPanel() {
       cancelled = true;
     };
   }, [user?.site_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchConfigChangeLogs({ limit: 8 })
+      .then((rows) => {
+        if (!cancelled) {
+          setHistoryRows(rows.filter((row) => row.entity === "manual_process" || row.entity === "process_config"));
+        }
+      })
+      .catch((loadError) => {
+        console.error("PROCESS CONFIG HISTORY LOAD ERROR:", loadError);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [saveInfo]);
 
   const stepRows = useMemo(
     () =>
@@ -412,6 +432,42 @@ export default function ProcessConfigPanel() {
                 </label>
               </div>
             </div>
+          </div>
+
+          <div className="app-card" style={{ marginTop: 18 }}>
+            <div className="system-status-section-header">
+              <div>
+                <h3>Historia zmian konfiguracji</h3>
+                <p>Ostatnie zapisy konfiguracji procesu recznego wraz z informacja, kto wprowadzil zmiane.</p>
+              </div>
+            </div>
+
+            {historyRows.length ? (
+              <div className="dashboard-table-scroll">
+                <table className="app-table">
+                  <thead>
+                    <tr>
+                      <th>Czas</th>
+                      <th>Uzytkownik</th>
+                      <th>Akcja</th>
+                      <th>Zakres</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "-"}</td>
+                        <td>{row.userName || row.userEmail || row.userId || "-"}</td>
+                        <td>{row.eventType || "-"}</td>
+                        <td>{row.entity || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="app-empty-state">Brak zapisanej historii zmian konfiguracji.</div>
+            )}
           </div>
         </>
       ) : null}

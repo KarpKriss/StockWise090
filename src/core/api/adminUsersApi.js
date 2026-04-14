@@ -60,6 +60,15 @@ async function invokeAdminUsers(action, payload = {}) {
   return data;
 }
 
+export async function checkAdminUsersBackendHealth() {
+  try {
+    const data = await invokeAdminUsers("health");
+    return Boolean(data?.ok);
+  } catch (error) {
+    return false;
+  }
+}
+
 
 async function invokeAdminRpc(functionName, payload = {}) {
   const { data, error } = await supabase.rpc(functionName, payload);
