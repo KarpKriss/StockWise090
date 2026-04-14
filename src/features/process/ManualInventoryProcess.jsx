@@ -367,10 +367,6 @@ export default function ManualInventoryProcess() {
       setSubmitting(true);
       setError("");
       await validateOperation();
-      if (stepConfig.confirmation?.enabled === false) {
-        await handleSave();
-        return;
-      }
       setStage("summary");
     } catch (validationError) {
       setError(validationError.message || "Nie mozna przejsc dalej");
@@ -686,7 +682,7 @@ export default function ManualInventoryProcess() {
 
           <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
             <button className="btn-primary full" disabled={submitting} onClick={handleSummary}>
-              {stepConfig.confirmation?.enabled === false ? "Zapisz operacje" : "Podsumowanie"}
+              Podsumowanie
             </button>
             <button className="btn-secondary full" disabled={submitting} onClick={handleAbandonLocation}>
               Zmien lokalizacje
