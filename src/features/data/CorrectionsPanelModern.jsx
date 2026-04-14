@@ -4,9 +4,6 @@ import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchCorrectionRowsWithProblems } from "../../core/api/correctionRowsApi";
-import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
-import { getMappedExportColumns } from "../../core/utils/importExportMapping";
-import { useAuth } from "../../core/auth/AppAuth";
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "-";
@@ -33,7 +30,6 @@ function buildChangeRows(row) {
 }
 
 export default function CorrectionsPanelModern() {
-  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [selectedUser, setSelectedUser] = useState("all");
   const [search, setSearch] = useState("");
@@ -42,7 +38,6 @@ export default function CorrectionsPanelModern() {
   const [selectedRow, setSelectedRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [mapping, setMapping] = useState(null);
 
   useEffect(() => {
     async function loadRows() {
@@ -60,18 +55,6 @@ export default function CorrectionsPanelModern() {
     loadRows();
   }, []);
 
-  useEffect(() => {
-    async function loadMapping() {
-      try {
-        setMapping(await fetchImportExportMapping(user?.site_id || null));
-      } catch (err) {
-        console.error("CORRECTIONS MAPPING LOAD ERROR:", err);
-      }
-    }
-
-    loadMapping();
-  }, [user?.site_id]);
-
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       const createdAt = row.created_at ? new Date(row.created_at) : null;
@@ -82,6 +65,7 @@ export default function CorrectionsPanelModern() {
         JSON.stringify(row.old_value || {}).toLowerCase().includes(loweredSearch) ||
         JSON.stringify(row.new_value || {}).toLowerCase().includes(loweredSearch) ||
         String(row.reason || "").toLowerCase().includes(loweredSearch) ||
+        String(row.comment || "").toLowerCase().includes(loweredSearch) ||
         String(row.entry_id || "").toLowerCase().includes(loweredSearch);
       const matchesFrom = !dateFrom || (createdAt && createdAt >= new Date(`${dateFrom}T00:00:00`));
       const matchesTo = !dateTo || (createdAt && createdAt <= new Date(`${dateTo}T23:59:59`));
@@ -90,18 +74,33 @@ export default function CorrectionsPanelModern() {
     });
   }, [rows, selectedUser, search, dateFrom, dateTo]);
 
-  const userIds = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+  const userOptions = useMemo(() => {
+    const map = new Map();
+
+    rows.forEach((row) => {
+      if (row.user_id && !map.has(row.user_id)) {
+        map.set(row.user_id, row.user_name || row.user_email || row.user_id);
+      }
+    });
+
+    return [...map.entries()];
+  }, [rows]);
 
   const exportRows = filteredRows.map((row) => ({
-    ...row,
-    old_value: JSON.stringify(row.old_value || {}),
-    new_value: JSON.stringify(row.new_value || {}),
+    data_korekty: formatDate(row.created_at),
+    user_id: row.user_id || "",
+    operator: row.user_name || row.user_email || row.user_id || "",
+    entry_id: row.entry_id || "",
+    reason: row.reason || "",
+    comment: row.comment || "",
+    before: JSON.stringify(row.old_value || {}),
+    after: JSON.stringify(row.new_value || {}),
   }));
 
   return (
     <PageShell
       title="Historia korekt"
-      subtitle="Podglad wszystkich edycji wpisow inwentaryzacyjnych z pelnym before / after i powodem zmiany."
+      subtitle="Pelna historia zmian operacji z before / after, powodem i komentarzem korekty."
       icon={<FileWarning size={26} />}
       backTo="/data"
       backLabel="Powrot do danych"
@@ -111,13 +110,22 @@ export default function CorrectionsPanelModern() {
           onClick={() =>
             exportToCSV({
               data: exportRows,
-              columns: getMappedExportColumns("corrections", mapping),
-              fileName: "corrections.csv",
+              columns: [
+                { key: "data_korekty", label: "Data korekty" },
+                { key: "user_id", label: "User ID" },
+                { key: "operator", label: "Operator" },
+                { key: "entry_id", label: "Entry ID" },
+                { key: "reason", label: "Powod" },
+                { key: "comment", label: "Komentarz" },
+                { key: "before", label: "Before" },
+                { key: "after", label: "After" },
+              ],
+              fileName: "correction-log.csv",
             })
           }
         >
           <Download size={16} />
-          Eksport CSV
+          Eksport correction log
         </Button>
       }
     >
@@ -127,10 +135,8 @@ export default function CorrectionsPanelModern() {
             <label className="app-field__label">Operator</label>
             <select value={selectedUser} onChange={(event) => setSelectedUser(event.target.value)}>
               <option value="all">Wszyscy operatorzy</option>
-              {userIds.map((userId) => (
-                <option key={userId} value={userId}>
-                  {userId}
-                </option>
+              {userOptions.map(([userId, label]) => (
+                <option key={userId} value={userId}>{label}</option>
               ))}
             </select>
           </div>
@@ -150,14 +156,11 @@ export default function CorrectionsPanelModern() {
           <div className="app-field history-toolbar-row__search">
             <label className="app-field__label">Szukaj</label>
             <div style={{ position: "relative" }}>
-              <Search
-                size={16}
-                style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--app-text-soft)" }}
-              />
+              <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--app-text-soft)" }} />
               <input
                 style={{ paddingLeft: 40 }}
                 type="text"
-                placeholder="Szukaj w powodach lub danych..."
+                placeholder="Powod, komentarz, entry id, before / after"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -173,10 +176,8 @@ export default function CorrectionsPanelModern() {
         <div className="app-card">
           <div className="app-module-panel__header" style={{ marginBottom: 14 }}>
             <div>
-              <h2 className="process-panel__title" style={{ fontSize: 24 }}>Ostatnie zmiany</h2>
-              <p className="process-panel__subtitle">
-                {filteredRows.length} rekordow po zastosowaniu aktywnych filtrow.
-              </p>
+              <h2 className="process-panel__title" style={{ fontSize: 24 }}>Zmiany operacji</h2>
+              <p className="process-panel__subtitle">{filteredRows.length} rekordow po zastosowaniu aktywnych filtrow.</p>
             </div>
             <span className="history-status-chip">
               <CalendarDays size={14} style={{ marginRight: 6 }} />
@@ -192,6 +193,7 @@ export default function CorrectionsPanelModern() {
                   <th>Kto zmienil</th>
                   <th>Entry ID</th>
                   <th>Powod</th>
+                  <th>Komentarz</th>
                   <th>Szczegoly</th>
                 </tr>
               </thead>
@@ -199,9 +201,10 @@ export default function CorrectionsPanelModern() {
                 {filteredRows.map((row) => (
                   <tr key={row.id}>
                     <td>{formatDate(row.created_at)}</td>
-                    <td>{row.user_id || "BRAK"}</td>
+                    <td>{row.user_name || row.user_email || row.user_id || "BRAK"}</td>
                     <td>{row.entry_id || "BRAK"}</td>
                     <td>{row.reason || "-"}</td>
+                    <td>{row.comment || "-"}</td>
                     <td>
                       <Button variant="secondary" size="md" onClick={() => setSelectedRow(row)}>
                         <Eye size={16} />
@@ -212,9 +215,7 @@ export default function CorrectionsPanelModern() {
                 ))}
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="app-empty-state">
-                      Brak korekt spelniajacych filtry.
-                    </td>
+                    <td colSpan={6} className="app-empty-state">Brak korekt spelniajacych filtry.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -228,26 +229,24 @@ export default function CorrectionsPanelModern() {
           <div className="history-modal" onClick={(event) => event.stopPropagation()}>
             <div className="history-modal__header">
               <div>
-                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
-                  Szczegoly korekty
-                </h2>
-                <p className="process-panel__subtitle">
-                  {formatDate(selectedRow.created_at)} - {selectedRow.user_id || "BRAK"}
-                </p>
+                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>Szczegoly korekty</h2>
+                <p className="process-panel__subtitle">{formatDate(selectedRow.created_at)} - {selectedRow.user_name || selectedRow.user_id || "BRAK"}</p>
               </div>
-              <Button variant="secondary" onClick={() => setSelectedRow(null)}>
-                Zamknij
-              </Button>
+              <Button variant="secondary" onClick={() => setSelectedRow(null)}>Zamknij</Button>
             </div>
 
             <div className="process-meta-grid" style={{ marginBottom: 18 }}>
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Kto zmienil</div>
-                <div className="process-meta-item__value">{selectedRow.user_id || "BRAK"}</div>
+                <div className="process-meta-item__value">{selectedRow.user_name || selectedRow.user_email || selectedRow.user_id || "BRAK"}</div>
               </div>
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Powod</div>
                 <div className="process-meta-item__value">{selectedRow.reason || "-"}</div>
+              </div>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Komentarz</div>
+                <div className="process-meta-item__value">{selectedRow.comment || "-"}</div>
               </div>
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Entry ID</div>
