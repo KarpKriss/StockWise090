@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   confirmEmptyLocation,
   fetchEmptyLocationsForZone,
   fetchEmptyLocationZones,
+  fetchQuickStartAnchorLocation,
   markLocationOnWork,
   releaseLocationWork,
   resolveProductForSurplus,
@@ -65,8 +66,58 @@ function SummaryCard({ zone, progress, location }) {
   );
 }
 
+function reorderLocationsFromAnchor(locations, anchorCode) {
+  if (!Array.isArray(locations) || locations.length === 0) {
+    return {
+      locations: [],
+      directionLabel: "brak pozycji",
+      startedFromExactMatch: false,
+    };
+  }
+
+  const normalizedAnchor = String(anchorCode || "").trim().toLowerCase();
+  const exactIndex = locations.findIndex(
+    (row) => String(row.code || "").trim().toLowerCase() === normalizedAnchor
+  );
+
+  let pivotIndex = exactIndex;
+  let startedFromExactMatch = exactIndex >= 0;
+
+  if (pivotIndex < 0) {
+    pivotIndex = locations.findIndex(
+      (row) => String(row.code || "").trim().toLowerCase() > normalizedAnchor
+    );
+
+    if (pivotIndex < 0) {
+      pivotIndex = locations.length - 1;
+    }
+  }
+
+  const beforeCount = pivotIndex;
+  const afterCount = locations.length - pivotIndex - 1;
+  const preferForward = afterCount >= beforeCount;
+
+  if (preferForward) {
+    return {
+      locations: [...locations.slice(pivotIndex), ...locations.slice(0, pivotIndex)],
+      directionLabel: "w strone konca strefy",
+      startedFromExactMatch,
+    };
+  }
+
+  const beforeSide = locations.slice(0, pivotIndex + 1).reverse();
+  const afterSide = locations.slice(pivotIndex + 1).reverse();
+
+  return {
+    locations: [...beforeSide, ...afterSide],
+    directionLabel: "w strone poczatku strefy",
+    startedFromExactMatch,
+  };
+}
+
 export default function EmptyLocationProcessModern() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { user } = useAuth();
   const { session, isActive, addOperation, endSession } = useSession();
   const [zones, setZones] = useState([]);
@@ -87,7 +138,9 @@ export default function EmptyLocationProcessModern() {
     quantity: "",
   });
   const [problemNote, setProblemNote] = useState("");
+  const [quickStartInfo, setQuickStartInfo] = useState(null);
   const lockedLocationIdRef = useRef(null);
+  const quickStartAttemptedRef = useRef(false);
 
   const currentLocation = queue[currentIndex] || null;
   const totalLocations = totalCount || queue.length;
@@ -132,6 +185,60 @@ export default function EmptyLocationProcessModern() {
   }, [user?.site_id]);
 
   useEffect(() => {
+    const quickStartCode = routerLocation.state?.quickStartCode;
+    const quickStartMode = routerLocation.state?.quickStartMode;
+
+    if (!quickStartMode || !quickStartCode || !user?.site_id || quickStartAttemptedRef.current) {
+      return;
+    }
+
+    quickStartAttemptedRef.current = true;
+
+    async function startFromAnchor() {
+      try {
+        setSubmitting(true);
+        setError("");
+
+        const anchorLocation = await fetchQuickStartAnchorLocation({
+          code: quickStartCode,
+          siteId: user.site_id,
+        });
+
+        const result = await fetchEmptyLocationsForZone({
+          zone: anchorLocation.zone,
+          siteId: user.site_id,
+        });
+
+        const reordered = reorderLocationsFromAnchor(result.locations || [], anchorLocation.code);
+
+        setSelectedZone(anchorLocation.zone || "");
+        setQueue(reordered.locations);
+        setTotalCount(result.totalCount || reordered.locations.length);
+        setCurrentIndex(0);
+        setScanValue("");
+        setProblemNote("");
+        setStage(reordered.locations.length ? "scan" : "zone-finished");
+        setQuickStartInfo({
+          anchorCode: anchorLocation.code,
+          zone: anchorLocation.zone,
+          directionLabel: reordered.directionLabel,
+          startedFromExactMatch: reordered.startedFromExactMatch,
+        });
+
+        if (reordered.locations.length > 0) {
+          await activateLocation(reordered.locations[0]);
+        }
+      } catch (err) {
+        setError(err.message || "Nie udalo sie uruchomic szybkiego startu.");
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
+    startFromAnchor();
+  }, [routerLocation.state, user?.site_id]);
+
+  useEffect(() => {
     return () => {
       if (lockedLocationIdRef.current) {
         releaseLocationWork({ locationId: lockedLocationIdRef.current }).catch((releaseError) => {
@@ -167,6 +274,7 @@ export default function EmptyLocationProcessModern() {
       setQueue(locations);
       setTotalCount(result.totalCount || locations.length);
       setCurrentIndex(0);
+      setQuickStartInfo(null);
       setScanValue("");
       setProblemNote("");
       setError("");
@@ -211,6 +319,7 @@ export default function EmptyLocationProcessModern() {
     setQueue([]);
     setTotalCount(0);
     setCurrentIndex(0);
+    setQuickStartInfo(null);
     setScanValue("");
     setProblemNote("");
     setError("");
@@ -418,6 +527,23 @@ export default function EmptyLocationProcessModern() {
       backLabel="Powrot do wyboru procesu"
     >
       <div className="process-layout">
+        {quickStartInfo ? (
+          <div className="app-card">
+            <div className="process-stage-header">
+              <div className="process-stage-header__icon">
+                <ArrowRight size={22} />
+              </div>
+              <div className="process-stage-header__text">
+                <h2>Szybki start aktywny</h2>
+                <p>
+                  Start od lokalizacji {quickStartInfo.anchorCode} w strefie {quickStartInfo.zone}. Kolejnosc zostala ustawiona{" "}
+                  {quickStartInfo.directionLabel}.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {selectedZone ? (
           <SummaryCard zone={selectedZone} progress={progress} location={currentLocation?.code} />
         ) : null}

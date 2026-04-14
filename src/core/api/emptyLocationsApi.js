@@ -63,6 +63,45 @@ export async function fetchEmptyLocationZones({ siteId } = {}) {
   return [...new Set(zones)].sort((left, right) => left.localeCompare(right));
 }
 
+export async function fetchQuickStartAnchorLocation({ code, siteId } = {}) {
+  const normalizedCode = String(code || "").trim();
+
+  if (!normalizedCode) {
+    throw new Error("Najpierw zeskanuj lub wpisz lokalizacje startowa.");
+  }
+
+  const safeSiteId = normalizeUuidLike(siteId);
+  let query = supabase
+    .from("locations")
+    .select("id, code, zone, status, locked_by, locked_at, session_id, site_id")
+    .eq("code", normalizedCode)
+    .limit(1)
+    .maybeSingle();
+
+  if (safeSiteId) {
+    query = supabase
+      .from("locations")
+      .select("id, code, zone, status, locked_by, locked_at, session_id, site_id")
+      .eq("code", normalizedCode)
+      .eq("site_id", safeSiteId)
+      .limit(1)
+      .maybeSingle();
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("FETCH QUICK START LOCATION ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie odczytac lokalizacji startowej");
+  }
+
+  if (!data) {
+    throw new Error("Nie znaleziono lokalizacji startowej w mapie magazynu.");
+  }
+
+  return data;
+}
+
 export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
   if (!zone) {
     return { locations: [], totalCount: 0 };
