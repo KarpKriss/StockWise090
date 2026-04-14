@@ -336,17 +336,7 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "health":
-        return json(200, {
-          ok: true,
-          serviceRoleConfigured: Boolean(SUPABASE_SERVICE_ROLE_KEY),
-          capabilities: {
-            list: true,
-            create: true,
-            update: true,
-            resetPassword: true,
-            delete: true,
-          },
-        });
+        return json(200, { ok: true });
       case "list":
         return await listUsers(serviceClient);
       case "create":
