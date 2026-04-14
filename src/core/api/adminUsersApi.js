@@ -12,27 +12,62 @@ function normalizeAdminUser(entry = {}) {
   };
 }
 
-function unwrapFunctionError(error) {
+async function readFunctionErrorContext(error) {
+  const context = error?.context;
+
+  if (!context) {
+    return null;
+  }
+
+  if (context.json || context.message || context.error) {
+    return context;
+  }
+
+  if (typeof context?.clone === "function") {
+    try {
+      const response = context.clone();
+      const data = await response.json();
+      if (data && typeof data === "object") {
+        return data;
+      }
+    } catch (_) {
+      try {
+        const response = context.clone();
+        const text = await response.text();
+        if (text) {
+          return { message: text };
+        }
+      } catch (__unused) {
+        return null;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function unwrapFunctionError(error) {
   if (!error) {
     return new Error("Nieznany blad backendu administracyjnego");
   }
 
+  const context = await readFunctionErrorContext(error);
+  const status = error?.context?.status || error?.status || null;
   const message =
-    error.context?.json?.error ||
-    error.context?.json?.message ||
-    error.message ||
+    context?.error ||
+    context?.message ||
+    error?.message ||
     "Nieznany blad backendu administracyjnego";
+
+  if (status && !context?.error && !context?.message) {
+    return new Error(`Blad backendu administracyjnego (${status})`);
+  }
 
   return new Error(message);
 }
 
 function extractErrorMessage(error) {
-  return String(
-    error?.context?.json?.error ||
-      error?.context?.json?.message ||
-      error?.message ||
-      "",
-  ).toLowerCase();
+  return String(error?.message || "").toLowerCase();
 }
 
 function isEdgeFunctionUnavailable(error) {
@@ -56,7 +91,7 @@ async function invokeAdminUsers(action, payload = {}) {
 
   if (error) {
     console.error(`ADMIN USERS FUNCTION ERROR [${action}]:`, error);
-    throw unwrapFunctionError(error);
+    throw await unwrapFunctionError(error);
   }
 
   if (data?.error) {
