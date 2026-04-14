@@ -110,6 +110,19 @@ export async function fetchLocationsPage({
   };
 }
 
+export async function fetchLocationZones() {
+  const { data, error } = await supabase.from("locations").select("zone");
+
+  if (error) {
+    console.error("FETCH LOCATION ZONES ERROR:", error);
+    throw new Error("Blad pobierania stref magazynu");
+  }
+
+  return [...new Set((data || []).map((row) => row.zone).filter(Boolean))].sort((left, right) =>
+    String(left).localeCompare(String(right))
+  );
+}
+
 export async function replaceLocations(rows) {
   const { error: deleteError } = await supabase
     .from("locations")

@@ -4,6 +4,7 @@ import ImportPreviewModal from "../../components/data/ImportPreviewModal";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   addWarehouseLocation,
+  fetchLocationZones,
   fetchLocationsPage,
   replaceLocations,
 } from "../../core/api/dataSectionApi";
@@ -20,6 +21,7 @@ export default function WarehouseMapPanel() {
   const [zoneFilter, setZoneFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [zones, setZones] = useState([]);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +51,18 @@ export default function WarehouseMapPanel() {
   useEffect(() => {
     loadRows();
   }, [page, search, zoneFilter, sortKey]);
+
+  useEffect(() => {
+    async function loadZones() {
+      try {
+        setZones(await fetchLocationZones());
+      } catch (err) {
+        console.error("WAREHOUSE ZONES LOAD ERROR:", err);
+      }
+    }
+
+    loadZones();
+  }, []);
 
   useEffect(() => {
     async function loadMapping() {
@@ -109,7 +123,6 @@ export default function WarehouseMapPanel() {
   if (loading) return <div>Ladowanie mapy magazynu...</div>;
   if (error) return <div>{error}</div>;
 
-  const zones = [...new Set(rows.map((row) => row.zone).filter(Boolean))].sort();
   return (
     <>
       <DataTablePanel
@@ -150,7 +163,7 @@ export default function WarehouseMapPanel() {
       {preview && (
         <ImportPreviewModal
           title="Podglad importu mapy magazynu"
-          intro="Mapa magazynu nie pokazuje tu bledow rekord po rekordzie, ale nadal dostajesz probke danych przed zatwierdzeniem."
+          intro="Najpierw widzisz podsumowanie i probke lokalizacji. Import zapisze tylko poprawne rekordy, a duplikaty lub braki zostana pominiete."
           preview={preview}
           columns={[
             { key: "code", label: "Lokalizacja" },

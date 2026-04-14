@@ -1,18 +1,44 @@
 import { supabase } from "../api/supabaseClient";
 import { parseTabularFile } from "../../utils/tabularFile";
-import { validateLocations } from "../utils/validators";
 import { resolveMappedValue } from "../utils/importExportMapping";
+import { IMPORT_EXPORT_ENTITIES } from "../config/importExportDefaults";
 
-function requireHeaders(headers, requiredHeaders) {
-  const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
+function normalizeHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\uFEFF/g, "");
+}
 
-  if (missingHeaders.length > 0) {
-    throw new Error(`Brak wymaganych kolumn: ${missingHeaders.join(", ")}`);
+function ensureRequiredImportColumns(headers, mappingConfig, entityKey) {
+  const entity = IMPORT_EXPORT_ENTITIES[entityKey];
+  if (!entity) return;
+
+  const missingFields = entity.importFields
+    .filter((field) => field.required)
+    .filter((field) => {
+      const fieldConfig = mappingConfig?.fields?.[field.key];
+      if (fieldConfig?.mode === "index") {
+        return false;
+      }
+
+      const mappedHeader = normalizeHeader(fieldConfig?.value);
+      if (mappedHeader) {
+        return !headers.includes(mappedHeader);
+      }
+
+      return !(field.aliases || []).some((alias) => headers.includes(normalizeHeader(alias)));
+    })
+    .map((field) => field.label);
+
+  if (missingFields.length > 0) {
+    throw new Error(`Brak wymaganych kolumn: ${missingFields.join(", ")}`);
   }
 }
 
 export async function buildStockImportPreview(file, mappingConfig) {
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
+  ensureRequiredImportColumns(headers, mappingConfig, "stock");
 
   const parsed = data.map((row, index) => ({
     location_code: resolveMappedValue({
@@ -79,6 +105,7 @@ export async function buildStockImportPreview(file, mappingConfig) {
 
 export async function buildPricesImportPreview(file, mappingConfig) {
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
+  ensureRequiredImportColumns(headers, mappingConfig, "prices");
 
   const { data: products } = await supabase.from("products").select("id, sku");
   const productMap = Object.fromEntries((products || []).map((row) => [row.sku, row.id]));
@@ -123,6 +150,7 @@ export async function buildPricesImportPreview(file, mappingConfig) {
 
 export async function buildLocationsImportPreview(file, mappingConfig) {
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
+  ensureRequiredImportColumns(headers, mappingConfig, "locations");
 
   const parsed = data.map((row, index) => ({
     code: resolveMappedValue({
@@ -145,19 +173,54 @@ export async function buildLocationsImportPreview(file, mappingConfig) {
         fallbackAliases: ["status"],
       }) || "active",
   }));
+  const valid = [];
+  const invalid = [];
+  const seen = new Set();
 
-  validateLocations(parsed);
+  parsed.forEach((row) => {
+    const errors = [];
+    const normalizedCode = String(row.code || "").trim();
+
+    if (!normalizedCode) {
+      errors.push("Brak lokalizacji");
+    }
+
+    if (!row.zone) {
+      errors.push("Brak strefy");
+    }
+
+    if (normalizedCode) {
+      const duplicateKey = normalizedCode.toUpperCase();
+      if (seen.has(duplicateKey)) {
+        errors.push("Duplikat lokalizacji w pliku");
+      } else {
+        seen.add(duplicateKey);
+      }
+    }
+
+    if (errors.length > 0) {
+      invalid.push({ ...row, errors });
+      return;
+    }
+
+    valid.push({
+      code: normalizedCode,
+      zone: String(row.zone || "").trim(),
+      status: String(row.status || "active").trim() || "active",
+    });
+  });
 
   return {
     headers,
     parsed,
-    valid: parsed,
-    invalid: [],
+    valid,
+    invalid,
   };
 }
 
 export async function buildProductsImportPreview(file, mappingConfig) {
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
+  ensureRequiredImportColumns(headers, mappingConfig, "products");
 
   const parsed = data.map((row, index) => ({
     sku: resolveMappedValue({
