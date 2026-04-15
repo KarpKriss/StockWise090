@@ -13,6 +13,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -63,6 +64,7 @@ export default function ImportExportPanel() {
   const [uploadedHeaders, setUploadedHeaders] = useState([]);
   const [templateSample, setTemplateSample] = useState([]);
   const [exportSample, setExportSample] = useState([]);
+  const [templatePreparing, setTemplatePreparing] = useState(false);
 
   useEffect(() => {
     async function loadMapping() {
@@ -169,12 +171,15 @@ export default function ImportExportPanel() {
       if (!file) return;
 
       try {
+        setTemplatePreparing(true);
         const parsed = await parseTabularFile(file);
         setUploadedHeaders(parsed.headers || []);
         setTemplateSample((parsed.rawRows || []).slice(0, 1));
         setError("");
       } catch (err) {
         setError(err.message || "Nie udalo sie odczytac naglowkow pliku");
+      } finally {
+        setTemplatePreparing(false);
       }
     };
     input.click();
@@ -459,6 +464,16 @@ export default function ImportExportPanel() {
           </div>
         </>
       ) : null}
+      <LoadingOverlay
+        open={saving}
+        fullscreen
+        message="Zapisuje mapowanie importu i eksportu dla wybranego obszaru danych..."
+      />
+      <LoadingOverlay
+        open={templatePreparing}
+        fullscreen
+        message="Odczytuje formatke i analizuje naglowki pliku..."
+      />
     </PageShell>
   );
 }

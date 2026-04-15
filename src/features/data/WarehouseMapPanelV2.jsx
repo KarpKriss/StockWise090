@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Button from "../../components/ui/Button";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
 import ImportPreviewModal from "../../components/data/ImportPreviewModal";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   addWarehouseLocation,
@@ -31,6 +32,8 @@ export default function WarehouseMapPanel() {
   const [mapping, setMapping] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [importPreparing, setImportPreparing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const limit = 50;
 
   async function loadRows() {
@@ -95,9 +98,12 @@ export default function WarehouseMapPanel() {
       if (!file) return;
 
       try {
+        setImportPreparing(true);
         setPreview(await buildLocationsImportPreview(file, getEntityMapping(mapping, "locations")?.import));
       } catch (err) {
         alert(err.message);
+      } finally {
+        setImportPreparing(false);
       }
     };
     input.click();
@@ -105,6 +111,7 @@ export default function WarehouseMapPanel() {
 
   const confirmImport = async () => {
     try {
+      setImporting(true);
       await replaceLocations(preview.valid);
       alert(`Zaimportowano ${preview.valid.length} lokalizacji.`);
       setPreview(null);
@@ -112,6 +119,8 @@ export default function WarehouseMapPanel() {
       await refreshZones();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -253,6 +262,8 @@ export default function WarehouseMapPanel() {
           getInvalidLabel={(row) => row.code || "(brak lokalizacji)"}
           onConfirm={confirmImport}
           onCancel={() => setPreview(null)}
+          processing={importing}
+          processingMessage="Resetuje mape i importuje nowy zestaw lokalizacji..."
         />
       )}
 
@@ -284,9 +295,22 @@ export default function WarehouseMapPanel() {
                 Anuluj
               </Button>
             </div>
+            <LoadingOverlay
+              open={processing}
+              message={
+                confirmModal.mode === "reset"
+                  ? "Resetuje cala mape magazynu i czyszcze lokalizacje..."
+                  : "Usuwam wskazana lokalizacje z mapy magazynu..."
+              }
+            />
           </div>
         </div>
       ) : null}
+      <LoadingOverlay
+        open={importPreparing}
+        fullscreen
+        message="Analizuje plik mapy magazynu i przygotowuje podglad importu..."
+      />
     </>
   );
 }

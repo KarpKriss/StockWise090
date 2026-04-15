@@ -1,5 +1,6 @@
 import { Save, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import { useAuth } from "../../core/auth/AppAuth";
 import {
@@ -472,6 +473,11 @@ export default function ProcessConfigPanel() {
           </div>
         </>
       ) : null}
+      <LoadingOverlay
+        open={saving}
+        fullscreen
+        message="Zapisuje konfiguracje procesu i aktualizuje ustawienia operatorow..."
+      />
     </PageShell>
   );
 }

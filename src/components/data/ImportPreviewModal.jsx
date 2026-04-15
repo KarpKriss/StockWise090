@@ -1,4 +1,6 @@
 import React, { useMemo } from "react";
+import LoadingOverlay from "../loaders/LoadingOverlay";
+import Button from "../ui/Button";
 
 function summarizeInvalidReasons(invalidRows) {
   const counts = new Map();
@@ -25,6 +27,8 @@ export default function ImportPreviewModal({
   onConfirm,
   onCancel,
   confirmLabel = "Importuj poprawne rekordy",
+  processing = false,
+  processingMessage = "Przetwarzam import danych...",
 }) {
   const invalidReasonSummary = useMemo(
     () => summarizeInvalidReasons(preview.invalid || []),
@@ -113,11 +117,12 @@ export default function ImportPreviewModal({
         ) : null}
 
         <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-          <button disabled={(preview.valid?.length || 0) === 0} onClick={onConfirm}>
+          <Button disabled={(preview.valid?.length || 0) === 0 || processing} loading={processing} onClick={onConfirm}>
             {confirmLabel}
-          </button>
-          <button onClick={onCancel}>Anuluj</button>
+          </Button>
+          <Button variant="secondary" disabled={processing} onClick={onCancel}>Anuluj</Button>
         </div>
+        <LoadingOverlay open={processing} message={processingMessage} />
       </div>
     </div>
   );
@@ -134,6 +139,7 @@ const overlayStyle = {
 };
 
 const modalStyle = {
+  position: "relative",
   width: "min(920px, 92vw)",
   maxHeight: "90vh",
   overflow: "auto",

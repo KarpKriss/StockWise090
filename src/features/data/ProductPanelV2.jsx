@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Button from "../../components/ui/Button";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
 import ImportPreviewModal from "../../components/data/ImportPreviewModal";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   deleteProductRow,
@@ -25,6 +26,8 @@ export default function ProductsPanel() {
   const [mapping, setMapping] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [importPreparing, setImportPreparing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   async function loadProducts() {
     try {
@@ -63,9 +66,12 @@ export default function ProductsPanel() {
       if (!file) return;
 
       try {
+        setImportPreparing(true);
         setPreview(await buildProductsImportPreview(file, getEntityMapping(mapping, "products")?.import));
       } catch (err) {
         alert(err.message);
+      } finally {
+        setImportPreparing(false);
       }
     };
     input.click();
@@ -73,6 +79,7 @@ export default function ProductsPanel() {
 
   const confirmImport = async () => {
     try {
+      setImporting(true);
       const result = await insertProducts(preview.valid);
       alert(
         `Dodano ${result.inserted} nowych produktow, pominieto ${result.skipped}. Bledne rekordy nie zostaly zaimportowane.`
@@ -81,6 +88,8 @@ export default function ProductsPanel() {
       loadProducts();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -187,6 +196,8 @@ export default function ProductsPanel() {
           getInvalidLabel={(row) => row.sku || "(brak SKU)"}
           onConfirm={confirmImport}
           onCancel={() => setPreview(null)}
+          processing={importing}
+          processingMessage="Importuje produkty i odswiezam kartoteke referencyjna..."
         />
       )}
 
@@ -218,9 +229,22 @@ export default function ProductsPanel() {
                 Anuluj
               </Button>
             </div>
+            <LoadingOverlay
+              open={processing}
+              message={
+                confirmModal.mode === "reset"
+                  ? "Czyszcze produkty oraz powiazane ceny i stock..."
+                  : "Usuwam produkt i jego powiazane dane..."
+              }
+            />
           </div>
         </div>
       ) : null}
+      <LoadingOverlay
+        open={importPreparing}
+        fullscreen
+        message="Analizuje plik produktow i buduje podglad importu..."
+      />
     </>
   );
 }

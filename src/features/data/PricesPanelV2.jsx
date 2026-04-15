@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
 import ImportPreviewModal from "../../components/data/ImportPreviewModal";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   createPriceRow,
@@ -23,6 +24,8 @@ export default function PricesPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mapping, setMapping] = useState(null);
+  const [importPreparing, setImportPreparing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   async function loadRows() {
     try {
@@ -61,9 +64,12 @@ export default function PricesPanel() {
       if (!file) return;
 
       try {
+        setImportPreparing(true);
         setPreview(await buildPricesImportPreview(file, getEntityMapping(mapping, "prices")?.import));
       } catch (err) {
         alert(err.message);
+      } finally {
+        setImportPreparing(false);
       }
     };
     input.click();
@@ -71,12 +77,15 @@ export default function PricesPanel() {
 
   const confirmImport = async () => {
     try {
+      setImporting(true);
       const result = await insertNewPrices(preview.valid);
       alert(`Dodano ${result.inserted} nowych cen, pominieto ${result.skipped} duplikatow.`);
       setPreview(null);
       loadRows();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -166,8 +175,15 @@ export default function PricesPanel() {
           getInvalidLabel={(row) => row.sku || "(brak SKU)"}
           onConfirm={confirmImport}
           onCancel={() => setPreview(null)}
+          processing={importing}
+          processingMessage="Waliduje ceny i zapisuje nowe rekordy do bazy..."
         />
       )}
+      <LoadingOverlay
+        open={importPreparing}
+        fullscreen
+        message="Analizuje plik cen i przygotowuje podglad importu..."
+      />
     </>
   );
 }

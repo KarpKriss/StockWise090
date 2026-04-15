@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
 import ImportPreviewModal from "../../components/data/ImportPreviewModal";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchStockRows, replaceStock } from "../../core/api/dataSectionApi";
 import { buildStockImportPreview } from "../../core/upload/dataImports";
@@ -19,6 +20,8 @@ export default function StockPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mapping, setMapping] = useState(null);
+  const [importPreparing, setImportPreparing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   async function loadRows() {
     try {
@@ -67,9 +70,12 @@ export default function StockPanel() {
       if (!file) return;
 
       try {
+        setImportPreparing(true);
         setPreview(await buildStockImportPreview(file, getEntityMapping(mapping, "stock")?.import));
       } catch (err) {
         alert(err.message);
+      } finally {
+        setImportPreparing(false);
       }
     };
     input.click();
@@ -77,12 +83,15 @@ export default function StockPanel() {
 
   const confirmImport = async () => {
     try {
+      setImporting(true);
       await replaceStock(preview.valid);
       alert(`Zaimportowano ${preview.valid.length} rekordow stocku.`);
       setPreview(null);
       loadRows();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -140,8 +149,15 @@ export default function StockPanel() {
           }
           onConfirm={confirmImport}
           onCancel={() => setPreview(null)}
+          processing={importing}
+          processingMessage="Czyszcze poprzedni stock i importuje nowy stan magazynu..."
         />
       )}
+      <LoadingOverlay
+        open={importPreparing}
+        fullscreen
+        message="Analizuje plik stocku i buduje podglad importu..."
+      />
     </>
   );
 }

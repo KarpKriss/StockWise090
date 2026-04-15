@@ -1,5 +1,6 @@
 import { Camera, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -296,6 +297,11 @@ export default function ScanningSettingsPanel() {
           </div>
         </>
       ) : null}
+      <LoadingOverlay
+        open={saving}
+        fullscreen
+        message="Zapisuje ustawienia skanowania i aktualizuje konfiguracje pol procesu..."
+      />
     </PageShell>
   );
 }
