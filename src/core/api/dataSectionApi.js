@@ -15,7 +15,7 @@ export async function fetchStockRows({ search = "", sortKey = "location" } = {})
 
   if (error) {
     console.error("FETCH STOCK ERROR:", error);
-    throw new Error("Błąd pobierania stocku");
+    throw new Error("Blad pobierania stocku");
   }
 
   const productMap = Object.fromEntries((products || []).map((item) => [item.id, item]));
@@ -58,7 +58,7 @@ export async function replaceStock(validRows) {
 
   if (deleteError) {
     console.error("DELETE STOCK ERROR:", deleteError);
-    throw new Error("Błąd czyszczenia stocku");
+    throw new Error(deleteError.message || "Blad czyszczenia stocku");
   }
 
   if (validRows.length > 0) {
@@ -66,11 +66,18 @@ export async function replaceStock(validRows) {
 
     if (insertError) {
       console.error("INSERT STOCK ERROR:", insertError);
-      throw new Error("Błąd importu stocku");
+      throw new Error(insertError.message || "Blad importu stocku");
     }
   }
 
-  await createImportLog("stock");
+  try {
+    await createImportLog("stock");
+  } catch (error) {
+    console.error("CREATE STOCK IMPORT LOG ERROR:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Blad zapisu logu importu stocku"
+    );
+  }
 }
 
 export async function fetchLocationsPage({
@@ -98,7 +105,7 @@ export async function fetchLocationsPage({
 
   if (error) {
     console.error("FETCH LOCATIONS ERROR:", error);
-    throw new Error("Błąd pobierania lokalizacji");
+    throw new Error("Blad pobierania lokalizacji");
   }
 
   const rows = data || [];
@@ -131,7 +138,7 @@ export async function replaceLocations(rows) {
 
   if (deleteError) {
     console.error("DELETE LOCATIONS ERROR:", deleteError);
-    throw new Error("Błąd czyszczenia mapy magazynu");
+    throw new Error(deleteError.message || "Blad czyszczenia mapy magazynu");
   }
 
   if (rows.length > 0) {
@@ -139,7 +146,7 @@ export async function replaceLocations(rows) {
 
     if (insertError) {
       console.error("INSERT LOCATIONS ERROR:", insertError);
-      throw new Error("Błąd importu mapy magazynu");
+      throw new Error(insertError.message || "Blad importu mapy magazynu");
     }
   }
 
@@ -151,7 +158,7 @@ export async function addWarehouseLocation({ code, zone, status = "active" }) {
 
   if (error) {
     console.error("ADD LOCATION ERROR:", error);
-    throw new Error(error.message || "Błąd dodawania lokalizacji");
+    throw new Error(error.message || "Blad dodawania lokalizacji");
   }
 }
 
@@ -183,7 +190,7 @@ export async function fetchPriceRows({ search = "", sortKey = "sku" } = {}) {
 
   if (error) {
     console.error("FETCH PRICES ERROR:", error);
-    throw new Error("Błąd pobierania cen");
+    throw new Error("Blad pobierania cen");
   }
 
   let rows = (data || []).map((row) => ({
@@ -218,7 +225,7 @@ export async function updatePriceRow(id, price) {
 
   if (error) {
     console.error("UPDATE PRICE ERROR:", error);
-    throw new Error("Błąd aktualizacji ceny");
+    throw new Error("Blad aktualizacji ceny");
   }
 }
 
@@ -227,7 +234,7 @@ export async function deletePriceRow(id) {
 
   if (error) {
     console.error("DELETE PRICE ERROR:", error);
-    throw new Error("Błąd usuwania ceny");
+    throw new Error("Blad usuwania ceny");
   }
 }
 
@@ -249,7 +256,7 @@ export async function createPriceRow({ sku, price }) {
     .maybeSingle();
 
   if (existing?.id) {
-    throw new Error("Cena dla tego SKU już istnieje");
+    throw new Error("Cena dla tego SKU juz istnieje");
   }
 
   const { error } = await supabase
@@ -258,7 +265,7 @@ export async function createPriceRow({ sku, price }) {
 
   if (error) {
     console.error("CREATE PRICE ERROR:", error);
-    throw new Error("Błąd dodawania ceny");
+    throw new Error("Blad dodawania ceny");
   }
 }
 
@@ -272,7 +279,7 @@ export async function insertNewPrices(rows) {
 
     if (error) {
       console.error("INSERT PRICES ERROR:", error);
-      throw new Error("Błąd importu cen");
+      throw new Error(error.message || "Blad importu cen");
     }
   }
 
@@ -287,7 +294,7 @@ export async function fetchProductRows({ search = "", sortKey = "sku" } = {}) {
 
   if (error) {
     console.error("FETCH PRODUCTS ERROR:", error);
-    throw new Error("Błąd pobierania produktów");
+    throw new Error("Blad pobierania produktow");
   }
 
   let rows = data || [];
@@ -317,7 +324,7 @@ export async function insertProducts(rows) {
 
     if (error) {
       console.error("INSERT PRODUCTS ERROR:", error);
-      throw new Error("Błąd importu produktów");
+      throw new Error(error.message || "Blad importu produktow");
     }
   }
 
@@ -388,7 +395,7 @@ export async function fetchCorrectionRows() {
 
   if (error) {
     console.error("FETCH CORRECTIONS ERROR:", error);
-    throw new Error("Błąd pobierania historii korekt");
+    throw new Error("Blad pobierania historii korekt");
   }
 
   return data || [];
