@@ -1,19 +1,19 @@
 import React from "react";
+import ScannableFieldStep from "./ScannableFieldStep";
 
-function LotStep({ value, onChange, error }) {
+function LotStep({ value, onChange, error, scannerEnabled = false, onOpenScanner = null }) {
   return (
-    <>
-      <div className="screen-title">Numer LOT</div>
-
-      <input
-        className={`input ${error ? "input-error" : ""}`}
-        placeholder="Wprowadź numer partii"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
-
-      {error && <div className="input-error-text">{error}</div>}
-    </>
+    <ScannableFieldStep
+      title="Numer LOT"
+      visual={null}
+      value={value}
+      onChange={onChange}
+      error={error}
+      placeholder="Wprowadz numer partii"
+      scannerEnabled={scannerEnabled}
+      onOpenScanner={onOpenScanner}
+      helperText="Mozesz wpisac LOT recznie albo zeskanowac go aparatem, jesli to pole ma wlaczone skanowanie."
+    />
   );
 }
 

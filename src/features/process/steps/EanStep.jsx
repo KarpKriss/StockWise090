@@ -1,25 +1,19 @@
 import React from "react";
+import ScannableFieldStep from "./ScannableFieldStep";
 
-function EanStep({ value, onChange, error }) {
+function EanStep({ value, onChange, error, scannerEnabled = false, onOpenScanner = null }) {
   return (
-    <>
-      <div className="screen-title">Skanuj EAN</div>
-
-      <div className="scan-visual">📊</div>
-
-      <div className="scan-placeholder">
-        {value || "Oczekiwanie na skan EAN..."}
-      </div>
-
-      <input
-        className={`input ${error ? "input-error" : ""}`}
-        placeholder="Wpisz EAN ręcznie"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
-
-      {error && <div className="input-error-text">{error}</div>}
-    </>
+    <ScannableFieldStep
+      title="Skanuj EAN"
+      visual="EAN"
+      value={value}
+      onChange={onChange}
+      error={error}
+      placeholder="Wpisz EAN recznie"
+      waitingLabel="Oczekiwanie na skan EAN..."
+      scannerEnabled={scannerEnabled}
+      onOpenScanner={onOpenScanner}
+    />
   );
 }
 

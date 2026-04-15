@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import { useAuth } from "../../core/auth/AppAuth";
 import { useSession } from "../../core/session/AppSession";
 import {
@@ -21,7 +22,11 @@ import LotStep from "./steps/LotStep";
 import ExpiryStep from "./steps/ExpiryStep";
 import TypeStep from "./steps/TypeStep";
 import QuantityStep from "./steps/QuantityStep";
-import { getOrderedEnabledManualSteps } from "../../core/config/manualProcessConfig";
+import {
+  DEFAULT_MANUAL_PROCESS_CONFIG,
+  SCANNABLE_MANUAL_FIELDS,
+  getOrderedEnabledManualSteps,
+} from "../../core/config/manualProcessConfig";
 
 const PROBLEM_OPTIONS = [
   "Towar uszkodzony",
@@ -66,6 +71,11 @@ export default function ManualInventoryProcess() {
   const [timeWarning, setTimeWarning] = useState("");
   const [savedCountForLocation, setSavedCountForLocation] = useState(0);
   const [problemNote, setProblemNote] = useState("");
+  const [scannerModal, setScannerModal] = useState({
+    open: false,
+    fieldKey: null,
+    title: "",
+  });
   const locationStartedAtRef = useRef(null);
   const lockedLocationIdRef = useRef(null);
 
@@ -76,6 +86,7 @@ export default function ManualInventoryProcess() {
     const types = config?.operationTypes || {};
     return Object.values(types).filter((item) => item?.enabled);
   }, [config]);
+  const scanningConfig = config?.scanning || DEFAULT_MANUAL_PROCESS_CONFIG.scanning;
 
   const quantityWarningThreshold =
     validationConfig.quantityWarningThreshold || 999;
@@ -120,33 +131,7 @@ export default function ManualInventoryProcess() {
       } catch (initError) {
         if (!cancelled) {
           setError(initError.message || "Blad uruchamiania procesu recznego");
-          setConfig({
-            steps: {
-              location: { label: "Lokalizacja", enabled: true, mandatory: true, order: 1 },
-              ean: { label: "EAN", enabled: true, mandatory: false, order: 2 },
-              sku: { label: "SKU", enabled: true, mandatory: true, order: 3 },
-              lot: { label: "LOT", enabled: true, mandatory: false, order: 4 },
-              expiry: { label: "Data waznosci", enabled: true, mandatory: false, order: 5 },
-              type: { label: "Typ operacji", enabled: true, mandatory: true, order: 6 },
-              quantity: { label: "Ilosc", enabled: true, mandatory: true, order: 7 },
-              confirmation: { label: "Potwierdzenie", enabled: true, mandatory: false, order: 8 },
-            },
-            operationTypes: {
-              shortage: { label: "Brak", value: "brak", enabled: true },
-              surplus: { label: "Nadwyzka", value: "surplus", enabled: true },
-            },
-            validation: {
-              lotPattern: "^[A-Za-z0-9._/-]{1,50}$",
-              lotMessage: "Niepoprawny format LOT",
-              quantityWarningThreshold: 999,
-              quantityHardLimit: 999999,
-              quantityHardLimitMessage: "Ilosc przekracza dopuszczalny limit",
-              locationTimeoutMs: 5 * 60 * 1000,
-              saveTimeoutMs: 10000,
-              saveRetries: 2,
-              fetchRetries: 2,
-            },
-          });
+          setConfig(DEFAULT_MANUAL_PROCESS_CONFIG);
         }
       } finally {
         if (!cancelled) {
@@ -213,6 +198,57 @@ export default function ManualInventoryProcess() {
     }));
     setError("");
     setWarnings([]);
+  }
+
+  function getScanFieldConfig(fieldKey) {
+    return scanningConfig.fields?.[fieldKey] || DEFAULT_MANUAL_PROCESS_CONFIG.scanning.fields[fieldKey];
+  }
+
+  function isScannerEnabledForField(fieldKey) {
+    if (!scanningConfig.enabled) {
+      return false;
+    }
+
+    if (!SCANNABLE_MANUAL_FIELDS.includes(fieldKey)) {
+      return false;
+    }
+
+    return Boolean(getScanFieldConfig(fieldKey)?.enabled);
+  }
+
+  function openScanner(fieldKey, title) {
+    if (!isScannerEnabledForField(fieldKey)) {
+      return;
+    }
+
+    setScannerModal({
+      open: true,
+      fieldKey,
+      title,
+    });
+  }
+
+  function closeScanner() {
+    setScannerModal({
+      open: false,
+      fieldKey: null,
+      title: "",
+    });
+  }
+
+  function handleScannerDetected(value) {
+    const normalizedValue = String(value || "").trim();
+    if (!normalizedValue || !scannerModal.fieldKey) {
+      return;
+    }
+
+    if (scannerModal.fieldKey === "location") {
+      setLocationInput(normalizedValue);
+      setError("");
+      return;
+    }
+
+    setField(scannerModal.fieldKey, normalizedValue);
   }
 
   function resetForm() {
@@ -440,6 +476,8 @@ export default function ManualInventoryProcess() {
             value={form.ean}
             onChange={(value) => setField("ean", value)}
             error=""
+            scannerEnabled={isScannerEnabledForField("ean")}
+            onOpenScanner={() => openScanner("ean", "Skanuj EAN")}
           />
         );
       case "sku":
@@ -449,6 +487,8 @@ export default function ManualInventoryProcess() {
             value={form.sku}
             onChange={(value) => setField("sku", value)}
             error=""
+            scannerEnabled={isScannerEnabledForField("sku")}
+            onOpenScanner={() => openScanner("sku", "Skanuj SKU")}
           />
         );
       case "lot":
@@ -458,6 +498,8 @@ export default function ManualInventoryProcess() {
             value={form.lot}
             onChange={(value) => setField("lot", value)}
             error=""
+            scannerEnabled={isScannerEnabledForField("lot")}
+            onOpenScanner={() => openScanner("lot", "Skanuj numer LOT")}
           />
         );
       case "expiry":
@@ -675,6 +717,8 @@ export default function ManualInventoryProcess() {
             value={locationInput}
             onChange={setLocationInput}
             error=""
+            scannerEnabled={isScannerEnabledForField("location")}
+            onOpenScanner={() => openScanner("location", "Skanuj lokalizacje")}
           />
 
           <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
@@ -835,6 +879,17 @@ export default function ManualInventoryProcess() {
           Powrot do menu
         </button>
       </div>
+
+      <BarcodeScannerModal
+        open={scannerModal.open}
+        title={scannerModal.title}
+        description="Zeskanuj kod aparatem telefonu albo wgraj zdjecie z aparatu. Po odczycie wartosc zostanie wpisana do pola procesu."
+        formats={scannerModal.fieldKey ? getScanFieldConfig(scannerModal.fieldKey)?.formats || [] : []}
+        preferBackCamera={Boolean(scanningConfig.preferBackCamera)}
+        autoCloseOnSuccess={Boolean(scanningConfig.autoCloseOnSuccess)}
+        onDetected={handleScannerDetected}
+        onClose={closeScanner}
+      />
     </div>
   );
 }

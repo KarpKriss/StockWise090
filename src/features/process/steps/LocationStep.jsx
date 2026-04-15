@@ -1,25 +1,19 @@
 import React from "react";
+import ScannableFieldStep from "./ScannableFieldStep";
 
-function LocationStep({ value, onChange, error }) {
+function LocationStep({ value, onChange, error, scannerEnabled = false, onOpenScanner = null }) {
   return (
-    <>
-      <div className="screen-title">Skanuj lokalizację</div>
-
-      <div className="scan-visual">📍</div>
-
-      <div className="scan-placeholder">
-        {value || "Oczekiwanie na skan..."}
-      </div>
-
-      <input
-        className={`input ${error ? "input-error" : ""}`}
-        placeholder="Wpisz lokalizację ręcznie"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
-
-      {error && <div className="input-error-text">{error}</div>}
-    </>
+    <ScannableFieldStep
+      title="Skanuj lokalizacje"
+      visual="L"
+      value={value}
+      onChange={onChange}
+      error={error}
+      placeholder="Wpisz lokalizacje recznie"
+      waitingLabel="Oczekiwanie na skan..."
+      scannerEnabled={scannerEnabled}
+      onOpenScanner={onOpenScanner}
+    />
   );
 }
 

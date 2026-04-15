@@ -1,4 +1,4 @@
-import { ArrowRight, Download, FileText, Settings2, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { ArrowRight, Camera, Download, FileText, Settings2, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/layout/PageShell";
 import "../../features/menu/menu-modern.css";
@@ -15,6 +15,12 @@ const SETTINGS_ITEMS = [
     description: "Przeglad krokow procesu, wymaganych pol i logiki skanowania.",
     path: "/admin/process-config",
     icon: SlidersHorizontal,
+  },
+  {
+    title: "Skanowanie",
+    description: "Wlaczanie kamery, wybór pol procesu i formatow kodow dla telefonow operatorow.",
+    path: "/admin/scanning",
+    icon: Camera,
   },
   {
     title: "Import/Export",

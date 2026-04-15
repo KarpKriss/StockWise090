@@ -9,6 +9,47 @@ export const MANUAL_STEP_DEFINITIONS = [
   { key: "confirmation", label: "Potwierdzenie" },
 ];
 
+export const SCANNABLE_MANUAL_FIELDS = ["location", "ean", "sku", "lot"];
+
+export const SCAN_FORMAT_OPTIONS = [
+  { value: "QR_CODE", label: "QR Code" },
+  { value: "AZTEC", label: "Aztec" },
+  { value: "CODABAR", label: "Codabar" },
+  { value: "CODE_39", label: "Code 39" },
+  { value: "CODE_93", label: "Code 93" },
+  { value: "CODE_128", label: "Code 128" },
+  { value: "DATA_MATRIX", label: "Data Matrix" },
+  { value: "EAN_8", label: "EAN-8" },
+  { value: "EAN_13", label: "EAN-13" },
+  { value: "ITF", label: "ITF" },
+  { value: "MAXICODE", label: "MaxiCode" },
+  { value: "PDF_417", label: "PDF417" },
+  { value: "RSS_14", label: "RSS 14" },
+  { value: "RSS_EXPANDED", label: "RSS Expanded" },
+  { value: "UPC_A", label: "UPC-A" },
+  { value: "UPC_E", label: "UPC-E" },
+  { value: "UPC_EAN_EXTENSION", label: "UPC/EAN Extension" },
+];
+
+export const DEFAULT_SCANNING_FIELDS = {
+  location: {
+    enabled: true,
+    formats: ["QR_CODE", "CODE_128", "DATA_MATRIX", "CODE_39"],
+  },
+  ean: {
+    enabled: true,
+    formats: ["EAN_13", "EAN_8", "UPC_A", "UPC_E", "QR_CODE"],
+  },
+  sku: {
+    enabled: true,
+    formats: ["CODE_128", "CODE_39", "QR_CODE", "DATA_MATRIX"],
+  },
+  lot: {
+    enabled: true,
+    formats: ["QR_CODE", "CODE_128", "CODE_39", "DATA_MATRIX"],
+  },
+};
+
 export const DEFAULT_MANUAL_PROCESS_CONFIG = {
   steps: {
     location: { label: "Lokalizacja", enabled: true, mandatory: true, order: 1, lockRequired: true },
@@ -38,6 +79,12 @@ export const DEFAULT_MANUAL_PROCESS_CONFIG = {
     saveTimeoutMs: 10000,
     saveRetries: 2,
     fetchRetries: 2,
+  },
+  scanning: {
+    enabled: false,
+    autoCloseOnSuccess: true,
+    preferBackCamera: true,
+    fields: DEFAULT_SCANNING_FIELDS,
   },
 };
 
@@ -69,6 +116,7 @@ export function normalizeManualProcessConfig(rawConfig = {}) {
   const sourceSteps = rawConfig.steps || rawConfig.manualSteps || {};
   const sourceValidation = rawConfig.validation || rawConfig.validation_rules || rawConfig;
   const sourceOperationTypes = rawConfig.operationTypes || rawConfig.operation_types || {};
+  const sourceScanning = rawConfig.scanning || rawConfig.scanner || {};
 
   const steps = MANUAL_STEP_DEFINITIONS.reduce((acc, definition, index) => {
     const rawStep = sourceSteps[definition.key] || {};
@@ -145,10 +193,41 @@ export function normalizeManualProcessConfig(rawConfig = {}) {
       Number(sourceValidation.fetchRetries) || DEFAULT_MANUAL_PROCESS_CONFIG.validation.fetchRetries,
   };
 
+  const fields = SCANNABLE_MANUAL_FIELDS.reduce((acc, fieldKey) => {
+    const fallback = DEFAULT_MANUAL_PROCESS_CONFIG.scanning.fields[fieldKey];
+    const fieldConfig = sourceScanning.fields?.[fieldKey] || sourceScanning[fieldKey] || {};
+    const formats = Array.isArray(fieldConfig.formats)
+      ? fieldConfig.formats
+          .map((item) => String(item || "").trim().toUpperCase())
+          .filter(Boolean)
+      : fallback.formats;
+
+    acc[fieldKey] = {
+      enabled: normalizeBoolean(fieldConfig.enabled, fallback.enabled),
+      formats: formats.length ? [...new Set(formats)] : fallback.formats,
+    };
+
+    return acc;
+  }, {});
+
+  const scanning = {
+    enabled: normalizeBoolean(sourceScanning.enabled, DEFAULT_MANUAL_PROCESS_CONFIG.scanning.enabled),
+    autoCloseOnSuccess: normalizeBoolean(
+      sourceScanning.autoCloseOnSuccess,
+      DEFAULT_MANUAL_PROCESS_CONFIG.scanning.autoCloseOnSuccess,
+    ),
+    preferBackCamera: normalizeBoolean(
+      sourceScanning.preferBackCamera,
+      DEFAULT_MANUAL_PROCESS_CONFIG.scanning.preferBackCamera,
+    ),
+    fields,
+  };
+
   return {
     steps,
     operationTypes,
     validation,
+    scanning,
   };
 }
 

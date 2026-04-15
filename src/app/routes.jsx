@@ -17,6 +17,7 @@ import Dashboard from '../features/dashboard/DashboardScreen';
 import SettingsHome from '../features/admin/SettingsHome';
 import UserPanel from '../features/admin/UserPanelModern';
 import ProcessConfigPanel from '../features/admin/ProcessConfigPanel';
+import ScanningSettingsPanel from '../features/admin/ScanningSettingsPanel';
 import ImportExportPanel from '../features/admin/ImportExportPanel';
 import LogsPanel from '../features/admin/LogsPanel';
 import SystemStatus from '../features/admin/SystemStatusModern';
@@ -190,6 +191,17 @@ export default function AppRoutes() {
     <ProtectedRoute>
       <RoleRoute permission="admin">
         <ProcessConfigPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/scanning"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
+        <ScanningSettingsPanel />
       </RoleRoute>
     </ProtectedRoute>
   }

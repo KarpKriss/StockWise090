@@ -1,25 +1,19 @@
 import React from "react";
+import ScannableFieldStep from "./ScannableFieldStep";
 
-function SkuStep({ value, onChange, error }) {
+function SkuStep({ value, onChange, error, scannerEnabled = false, onOpenScanner = null }) {
   return (
-    <>
-      <div className="screen-title">Skanuj SKU</div>
-
-      <div className="scan-visual">📦</div>
-
-      <div className="scan-placeholder">
-        {value || "Oczekiwanie na skan..."}
-      </div>
-
-      <input
-        className={`input ${error ? "input-error" : ""}`}
-        placeholder="Wpisz SKU ręcznie"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
-
-      {error && <div className="input-error-text">{error}</div>}
-    </>
+    <ScannableFieldStep
+      title="Skanuj SKU"
+      visual="SKU"
+      value={value}
+      onChange={onChange}
+      error={error}
+      placeholder="Wpisz SKU recznie"
+      waitingLabel="Oczekiwanie na skan..."
+      scannerEnabled={scannerEnabled}
+      onOpenScanner={onOpenScanner}
+    />
   );
 }
 
