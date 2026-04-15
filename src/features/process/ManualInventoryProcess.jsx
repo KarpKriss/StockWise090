@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ClipboardList, PauseCircle, ScanSearch, ShieldAlert, Warehouse } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import PageShell from "../../components/layout/PageShell";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
+import Button from "../../components/ui/Button";
 import { useAuth } from "../../core/auth/AppAuth";
 import { useSession } from "../../core/session/AppSession";
 import {
@@ -51,6 +54,37 @@ function isValidIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function SummaryCard({ location, zone, savedCount, sessionZone }) {
+  const rows = [
+    ["Lokalizacja", location?.code || "-"],
+    ["Strefa", location?.zone || zone || sessionZone || "-"],
+    ["Operacje w lokalizacji", String(savedCount || 0)],
+  ];
+
+  return (
+    <div className="app-card process-sidebar-card">
+      <div className="process-sidebar-card__header">
+        <div className="process-sidebar-card__icon">
+          <Warehouse size={18} />
+        </div>
+        <div>
+          <h3 className="process-sidebar-card__title">Biezaca lokalizacja</h3>
+          <p className="process-panel__subtitle">Podglad aktywnego miejsca pracy i licznika zapisow.</p>
+        </div>
+      </div>
+
+      <div className="process-sidebar-card__list">
+        {rows.map(([label, value]) => (
+          <div className="process-sidebar-card__row" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ManualInventoryProcess() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -87,16 +121,12 @@ export default function ManualInventoryProcess() {
     return Object.values(types).filter((item) => item?.enabled);
   }, [config]);
   const scanningConfig = config?.scanning || DEFAULT_MANUAL_PROCESS_CONFIG.scanning;
-
-  const quantityWarningThreshold =
-    validationConfig.quantityWarningThreshold || 999;
+  const quantityWarningThreshold = validationConfig.quantityWarningThreshold || 999;
 
   const summaryRows = useMemo(
     () =>
       [
-        stepConfig.location?.enabled !== false
-          ? ["Lokalizacja", currentLocation?.code || "-"]
-          : null,
+        stepConfig.location?.enabled !== false ? ["Lokalizacja", currentLocation?.code || "-"] : null,
         currentLocation?.zone || currentZone ? ["Strefa", currentLocation?.zone || currentZone || "-"] : null,
         stepConfig.ean?.enabled ? ["EAN", form.ean || "-"] : null,
         stepConfig.sku?.enabled ? ["SKU", form.sku || "-"] : null,
@@ -107,6 +137,23 @@ export default function ManualInventoryProcess() {
       ].filter(Boolean),
     [currentLocation?.code, currentLocation?.zone, currentZone, form, stepConfig]
   );
+
+  const processStageLabel = useMemo(() => {
+    switch (stage) {
+      case "location":
+        return "Skan lokalizacji";
+      case "details":
+        return "Uzupelnianie operacji";
+      case "summary":
+        return "Podsumowanie";
+      case "saved":
+        return "Zapis zakonczony";
+      case "problem":
+        return "Raport problemu";
+      default:
+        return "Proces reczny";
+    }
+  }, [stage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +170,7 @@ export default function ManualInventoryProcess() {
           return;
         }
 
-      setConfig(nextConfig);
+        setConfig(nextConfig);
 
         if (flushResult.sent > 0) {
           setBufferMessage(`Wyslano z bufora ${flushResult.sent} operacji.`);
@@ -167,7 +214,6 @@ export default function ManualInventoryProcess() {
       }
     };
   }, []);
-
   useEffect(() => {
     if (!currentLocation || !validationConfig.locationTimeoutMs) {
       setTimeWarning("");
@@ -282,10 +328,7 @@ export default function ManualInventoryProcess() {
         lockedLocationIdRef.current = null;
       }
 
-      if (
-        String(location.status || "").toLowerCase() !== "in_progress" ||
-        location.locked_by !== user.id
-      ) {
+      if (String(location.status || "").toLowerCase() !== "in_progress" || location.locked_by !== user.id) {
         await lockManualLocation({
           locationId: location.id,
           userId: user.id,
@@ -298,9 +341,7 @@ export default function ManualInventoryProcess() {
       setSessionZone(resolvedZone);
       setCurrentZone(resolvedZone);
       setLocationInput(location.code || "");
-      setLocationStock(
-        await fetchLocationStockSnapshot(location.id, Number(validationConfig.fetchRetries || 2))
-      );
+      setLocationStock(await fetchLocationStockSnapshot(location.id, Number(validationConfig.fetchRetries || 2)));
       setSavedCountForLocation(0);
       setProblemNote("");
       resetForm();
@@ -373,13 +414,8 @@ export default function ManualInventoryProcess() {
       throw new Error("Ilosc musi byc wieksza od zera");
     }
 
-    if (
-      Number(validationConfig.quantityHardLimit || 0) > 0 &&
-      normalizedQuantity > Number(validationConfig.quantityHardLimit)
-    ) {
-      throw new Error(
-        validationConfig.quantityHardLimitMessage || "Ilosc przekracza dopuszczalny limit",
-      );
+    if (Number(validationConfig.quantityHardLimit || 0) > 0 && normalizedQuantity > Number(validationConfig.quantityHardLimit)) {
+      throw new Error(validationConfig.quantityHardLimitMessage || "Ilosc przekracza dopuszczalny limit");
     }
 
     if (normalizedQuantity > quantityWarningThreshold) {
@@ -451,9 +487,7 @@ export default function ManualInventoryProcess() {
       setSavedCountForLocation((current) => current + 1);
 
       if (result.status === "buffered") {
-        setBufferMessage(
-          "Brak polaczenia lub timeout API. Operacja trafila do lokalnego bufora."
-        );
+        setBufferMessage("Brak polaczenia lub timeout API. Operacja trafila do lokalnego bufora.");
       } else {
         setBufferMessage("");
       }
@@ -600,7 +634,6 @@ export default function ManualInventoryProcess() {
       setSubmitting(false);
     }
   }
-
   async function handleReportProblem(reason) {
     if (!currentLocation?.id) {
       return;
@@ -663,221 +696,306 @@ export default function ManualInventoryProcess() {
   }
 
   return (
-    <div style={{ paddingBottom: 40 }}>
-      <div className="screen-title">Reczna inwentaryzacja</div>
-
-      {currentLocation && (
-        <div className="confirm-card" style={{ marginBottom: 20 }}>
-          <div className="confirm-row">
-            <span>Lokalizacja</span>
-            <span>{currentLocation.code}</span>
-          </div>
-          <div className="confirm-row">
-            <span>Strefa</span>
-            <span>{currentLocation.zone || "-"}</span>
-          </div>
-          <div className="confirm-row">
-            <span>Operacje w lokalizacji</span>
-            <span>{savedCountForLocation}</span>
-          </div>
+    <PageShell
+      title="Reczna inwentaryzacja"
+      subtitle="Na telefonie proces zostaje prosty i pionowy, a na desktopie zamienia sie w spokojny panel roboczy z wyraznym kontekstem sesji obok."
+      icon={<ScanSearch size={26} />}
+      backTo="/process"
+      backLabel="Powrot do wyboru procesu"
+      actions={
+        <div className="page-shell__pill">
+          <ClipboardList size={14} />
+          {processStageLabel}
         </div>
-      )}
-
-      {timeWarning && (
-        <div className="input-error-text" style={{ marginBottom: 12 }}>
-          {timeWarning}
-        </div>
-      )}
-
-      {bufferMessage && (
-        <div className="confirm-card" style={{ marginBottom: 12 }}>
-          {bufferMessage}
-        </div>
-      )}
-
-      {warnings.length > 0 && (
-        <div className="confirm-card" style={{ marginBottom: 12 }}>
-          {warnings.map((warning) => (
-            <div key={warning} style={{ marginBottom: 6 }}>
-              {warning}
+      }
+    >
+      <div className="process-layout process-layout--split">
+        <div className="process-layout__main">
+          {bufferMessage ? <div className="app-card process-inline-message">{bufferMessage}</div> : null}
+          {timeWarning ? <div className="input-error-text">{timeWarning}</div> : null}
+          {warnings.length > 0 ? (
+            <div className="app-card process-inline-message process-inline-message--warning">
+              {warnings.map((warning) => (
+                <div key={warning}>{warning}</div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          ) : null}
+          {error ? <div className="input-error-text">{error}</div> : null}
 
-      {error && (
-        <div className="input-error-text" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-
-      {stage === "location" && (
-        <>
-          <LocationStep
-            value={locationInput}
-            onChange={setLocationInput}
-            error=""
-            scannerEnabled={isScannerEnabledForField("location")}
-            onOpenScanner={() => openScanner("location", "Skanuj lokalizacje")}
-          />
-
-          <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-            <button className="btn-primary full" disabled={submitting} onClick={handleLocationConfirm}>
-              Potwierdz lokalizacje
-            </button>
-          </div>
-        </>
-      )}
-
-      {stage === "details" && (
-        <>
-          {orderedSteps
-            .filter((step) => !["location", "confirmation"].includes(step.key))
-            .map(renderDetailStep)}
-
-          <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-            <button className="btn-primary full" disabled={submitting} onClick={handleSummary}>
-              Podsumowanie
-            </button>
-            <button className="btn-secondary full" disabled={submitting} onClick={handleAbandonLocation}>
-              Zmien lokalizacje
-            </button>
-          </div>
-
-          <button
-            className="btn-secondary full"
-            style={{ marginTop: 12 }}
-            disabled={submitting}
-            onClick={() => {
-              setError("");
-              setProblemNote("");
-              setStage("problem");
-            }}
-          >
-            Zglos problem
-          </button>
-        </>
-      )}
-
-      {stage === "problem" && currentLocation ? (
-        <>
-          <div className="confirm-header">Zglos problem dla lokalizacji</div>
-          <div className="confirm-card" style={{ marginBottom: 20 }}>
-            <div className="confirm-row">
-              <span>Lokalizacja</span>
-              <span>{currentLocation.code}</span>
-            </div>
-            <div className="confirm-row">
-              <span>Strefa</span>
-              <span>{currentLocation.zone || currentZone || "-"}</span>
-            </div>
-          </div>
-
-          <textarea
-            className="input"
-            placeholder="Opcjonalny komentarz do problemu"
-            value={problemNote}
-            onChange={(event) => setProblemNote(event.target.value)}
-            style={{ minHeight: 120, marginBottom: 16 }}
-          />
-
-          <div className="process-choice-grid">
-            {PROBLEM_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="card selectable process-choice-card"
-                disabled={submitting}
-                onClick={() => handleReportProblem(option)}
-              >
-                <div className="process-choice-card__title">{option}</div>
-                <div className="process-choice-card__desc">
-                  Zapisz problem i zablokuj lokalizacje do czasu zwolnienia w panelu danych.
+          {stage === "location" ? (
+            <div className="app-card process-stage-card process-stage-card--hero">
+              <div className="process-stage-header">
+                <div className="process-stage-header__icon">
+                  <ScanSearch size={22} />
                 </div>
-              </button>
-            ))}
-          </div>
-
-          <button
-            className="btn-secondary full"
-            style={{ marginTop: 12 }}
-            disabled={submitting}
-            onClick={() => setStage("details")}
-          >
-            Wroc
-          </button>
-        </>
-      ) : null}
-
-      {stage === "summary" && (
-        <>
-          <div className="confirm-header">Podsumowanie operacji</div>
-          <div className="confirm-card" style={{ marginBottom: 20 }}>
-            {summaryRows.map(([label, value]) => (
-              <div className="confirm-row" key={label}>
-                <span>{label}</span>
-                <span>{value}</span>
+                <div className="process-stage-header__text">
+                  <h2>Wybierz lokalizacje startowa</h2>
+                  <p>Zeskanuj lub wpisz lokalizacje, a potem przejdziemy do operacji w tej konkretnej pozycji.</p>
+                </div>
               </div>
-            ))}
-          </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
-            <button className="btn-primary full" disabled={submitting} onClick={handleSave}>
-              Zapisz operacje
-            </button>
-            <button className="btn-secondary full" disabled={submitting} onClick={() => setStage("details")}>
-              Wroc
-            </button>
-          </div>
-        </>
-      )}
+              <LocationStep
+                value={locationInput}
+                onChange={setLocationInput}
+                error=""
+                scannerEnabled={isScannerEnabledForField("location")}
+                onOpenScanner={() => openScanner("location", "Skanuj lokalizacje")}
+              />
 
-      {stage === "saved" && (
-        <>
-          <div className="confirm-header">Operacja zapisana</div>
-          <div className="confirm-card" style={{ marginBottom: 20 }}>
-            <div className="confirm-row">
-              <span>Lokalizacja</span>
-              <span>{currentLocation?.code || "-"}</span>
+              <div className="process-actions process-actions--tight">
+                <Button size="lg" loading={submitting} onClick={handleLocationConfirm}>
+                  Potwierdz lokalizacje
+                </Button>
+              </div>
             </div>
-            <div className="confirm-row">
-              <span>Zapisane operacje</span>
-              <span>{savedCountForLocation}</span>
+          ) : null}
+
+          {stage === "details" ? (
+            <div className="app-card process-stage-card">
+              <div className="process-stage-header">
+                <div className="process-stage-header__icon">
+                  <ClipboardList size={22} />
+                </div>
+                <div className="process-stage-header__text">
+                  <h2>Uzupelnij operacje dla lokalizacji</h2>
+                  <p>Pracuj krok po kroku. Na desktopie pola sa skupione w panelu roboczym, bez rozciagania na caly ekran.</p>
+                </div>
+              </div>
+
+              <div className="process-section-grid">
+                {orderedSteps
+                  .filter((step) => !["location", "confirmation"].includes(step.key))
+                  .map(renderDetailStep)}
+              </div>
+
+              <div className="process-actions">
+                <Button size="lg" loading={submitting} onClick={handleSummary}>
+                  Podsumowanie
+                </Button>
+                <Button variant="secondary" size="lg" disabled={submitting} onClick={handleAbandonLocation}>
+                  Zmien lokalizacje
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  disabled={submitting}
+                  onClick={() => {
+                    setError("");
+                    setProblemNote("");
+                    setStage("problem");
+                  }}
+                >
+                  Zglos problem
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "problem" && currentLocation ? (
+            <div className="app-card process-stage-card">
+              <div className="process-stage-header">
+                <div className="process-stage-header__icon">
+                  <ShieldAlert size={22} />
+                </div>
+                <div className="process-stage-header__text">
+                  <h2>Zglos problem dla lokalizacji</h2>
+                  <p>Zapisz problem i zostaw lokalizacje zablokowana do dalszej obslugi w panelu danych.</p>
+                </div>
+              </div>
+
+              <div className="process-meta-grid">
+                <div className="process-meta-item">
+                  <div className="process-meta-item__label">Lokalizacja</div>
+                  <div className="process-meta-item__value">{currentLocation.code}</div>
+                </div>
+                <div className="process-meta-item">
+                  <div className="process-meta-item__label">Strefa</div>
+                  <div className="process-meta-item__value">{currentLocation.zone || currentZone || "-"}</div>
+                </div>
+              </div>
+
+              <textarea
+                className="input"
+                placeholder="Opcjonalny komentarz do problemu"
+                value={problemNote}
+                onChange={(event) => setProblemNote(event.target.value)}
+                style={{ minHeight: 120 }}
+              />
+
+              <div className="process-choice-grid">
+                {PROBLEM_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="card selectable process-choice-card"
+                    disabled={submitting}
+                    onClick={() => handleReportProblem(option)}
+                  >
+                    <div className="process-choice-card__title">{option}</div>
+                    <div className="process-choice-card__desc">
+                      Zapisz problem i zablokuj lokalizacje do czasu zwolnienia w panelu danych.
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="process-actions process-actions--tight">
+                <Button variant="secondary" size="lg" disabled={submitting} onClick={() => setStage("details")}>
+                  Wroc
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "summary" ? (
+            <div className="app-card process-stage-card">
+              <div className="process-stage-header">
+                <div className="process-stage-header__icon">
+                  <ClipboardList size={22} />
+                </div>
+                <div className="process-stage-header__text">
+                  <h2>Podsumowanie operacji</h2>
+                  <p>Sprawdz wszystko jeszcze raz przed zapisem. Uklad zostaje zwarty i czytelny takze na szerokim ekranie.</p>
+                </div>
+              </div>
+
+              <div className="confirm-card">
+                {summaryRows.map(([label, value]) => (
+                  <div className="confirm-row" key={label}>
+                    <span>{label}</span>
+                    <span>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="process-actions">
+                <Button size="lg" loading={submitting} onClick={handleSave}>
+                  Zapisz operacje
+                </Button>
+                <Button variant="secondary" size="lg" disabled={submitting} onClick={() => setStage("details")}>
+                  Wroc
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "saved" ? (
+            <div className="app-card process-stage-card">
+              <div className="process-stage-header">
+                <div className="process-stage-header__icon">
+                  <ClipboardList size={22} />
+                </div>
+                <div className="process-stage-header__text">
+                  <h2>Operacja zapisana</h2>
+                  <p>Mozesz dodac kolejny wpis albo zamknac aktualna lokalizacje i przejsc dalej.</p>
+                </div>
+              </div>
+
+              <div className="process-meta-grid">
+                <div className="process-meta-item">
+                  <div className="process-meta-item__label">Lokalizacja</div>
+                  <div className="process-meta-item__value">{currentLocation?.code || "-"}</div>
+                </div>
+                <div className="process-meta-item">
+                  <div className="process-meta-item__label">Zapisane operacje</div>
+                  <div className="process-meta-item__value">{savedCountForLocation}</div>
+                </div>
+              </div>
+
+              <div className="process-actions">
+                <Button size="lg" disabled={submitting} onClick={() => setStage("details")}>
+                  Dodaj kolejna operacje
+                </Button>
+                <Button variant="secondary" size="lg" disabled={submitting} onClick={handleFinishLocation}>
+                  Zakoncz lokalizacje
+                </Button>
+                <Button variant="secondary" size="lg" disabled={submitting} onClick={handleAbandonLocation}>
+                  Zwroc lokalizacje do puli
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <aside className="process-layout__aside">
+          <div className="app-card process-sidebar-card process-sidebar-card--stage">
+            <div className="process-sidebar-card__header">
+              <div className="process-sidebar-card__icon">
+                <ClipboardList size={18} />
+              </div>
+              <div>
+                <h3 className="process-sidebar-card__title">Stan procesu</h3>
+                <p className="process-panel__subtitle">Etap, kontekst sesji i aktualne priorytety operatora.</p>
+              </div>
+            </div>
+
+            <div className="process-sidebar-stage">{processStageLabel}</div>
+            <div className="process-sidebar-note">
+              {stage === "location"
+                ? "Na desktopie pole skanowania zostaje w centrum, bez zbednego rozciagania calego widoku."
+                : currentLocation
+                  ? `Pracujesz teraz na lokalizacji ${currentLocation.code}.`
+                  : "Po wyborze lokalizacji tutaj zobaczysz jej kontekst."}
             </div>
           </div>
 
-          <button className="btn-primary full" disabled={submitting} onClick={() => setStage("details")}>
-            Dodaj kolejna operacje
-          </button>
-          <button
-            className="btn-secondary full"
-            style={{ marginTop: 12 }}
-            disabled={submitting}
-            onClick={handleFinishLocation}
-          >
-            Zakoncz lokalizacje
-          </button>
-          <button
-            className="btn-secondary full"
-            style={{ marginTop: 12 }}
-            disabled={submitting}
-            onClick={handleAbandonLocation}
-          >
-            Zwroc lokalizacje do puli
-          </button>
-        </>
-      )}
+          {currentLocation ? (
+            <SummaryCard
+              location={currentLocation}
+              zone={currentZone}
+              sessionZone={sessionZone}
+              savedCount={savedCountForLocation}
+            />
+          ) : null}
 
-      <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-        <button className="btn-secondary full" disabled={submitting} onClick={handlePauseSession}>
-          Wstrzymaj prace
-        </button>
-        <button className="btn-secondary full" disabled={submitting} onClick={handleEndSession}>
-          Zakoncz sesje
-        </button>
-        <button className="btn-secondary full" disabled={submitting} onClick={() => navigate("/menu")}>
-          Powrot do menu
-        </button>
+          {summaryRows.length > 0 && stage !== "summary" ? (
+            <div className="app-card process-sidebar-card">
+              <div className="process-sidebar-card__header">
+                <div className="process-sidebar-card__icon">
+                  <ClipboardList size={18} />
+                </div>
+                <div>
+                  <h3 className="process-sidebar-card__title">Biezace dane</h3>
+                  <p className="process-panel__subtitle">Szybki podglad tego, co operator wpisal do formularza.</p>
+                </div>
+              </div>
+
+              <div className="process-sidebar-card__list">
+                {summaryRows.map(([label, value]) => (
+                  <div className="process-sidebar-card__row" key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="app-card process-sidebar-card">
+            <div className="process-sidebar-card__header">
+              <div className="process-sidebar-card__icon">
+                <AlertTriangle size={18} />
+              </div>
+              <div>
+                <h3 className="process-sidebar-card__title">Sterowanie sesja</h3>
+                <p className="process-panel__subtitle">Najwazniejsze akcje sesji sa zawsze pod reka, ale nie rozpychaja glownego panelu.</p>
+              </div>
+            </div>
+
+            <div className="process-actions process-actions--stack">
+              <Button variant="secondary" size="lg" disabled={submitting} onClick={handlePauseSession}>
+                <PauseCircle size={16} />
+                Wstrzymaj prace
+              </Button>
+              <Button variant="secondary" size="lg" disabled={submitting} onClick={handleEndSession}>
+                Zakoncz sesje
+              </Button>
+              <Button variant="secondary" size="lg" disabled={submitting} onClick={() => navigate("/menu")}>
+                Powrot do menu
+              </Button>
+            </div>
+          </div>
+        </aside>
       </div>
 
       <BarcodeScannerModal
@@ -890,6 +1008,6 @@ export default function ManualInventoryProcess() {
         onDetected={handleScannerDetected}
         onClose={closeScanner}
       />
-    </div>
+    </PageShell>
   );
 }

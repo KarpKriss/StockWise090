@@ -14,14 +14,15 @@ function ScannableFieldStep({
   helperText = "",
 }) {
   return (
-    <>
-      <div className="screen-title">{title}</div>
-
-      {visual ? <div className="scan-visual">{visual}</div> : null}
+    <div className="scan-panel">
+      <div className="scan-panel__header">
+        {visual ? <div className="scan-visual">{visual}</div> : null}
+        <span>{title}</span>
+      </div>
 
       {waitingLabel ? <div className="scan-placeholder">{value || waitingLabel}</div> : null}
 
-      <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+      <div className="scan-panel__field-row">
         <input
           className={`input ${error ? "input-error" : ""}`}
           placeholder={placeholder}
@@ -44,7 +45,7 @@ function ScannableFieldStep({
 
       {helperText ? <div className="helper-note" style={{ marginTop: 10 }}>{helperText}</div> : null}
       {error ? <div className="input-error-text">{error}</div> : null}
-    </>
+    </div>
   );
 }
 
