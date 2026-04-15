@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 
 const TRACKED_TYPES = [
   "brak",
@@ -95,6 +96,7 @@ export async function fetchInventoryHistoryEntries({
   pageSize = 25,
   sortDirection = "desc",
   filters = {},
+  siteId = readActiveSiteId(),
 } = {}) {
   const safePage = Math.max(1, Number(page) || 1);
   const safePageSize = Math.max(1, Number(pageSize) || 25);
@@ -108,6 +110,8 @@ export async function fetchInventoryHistoryEntries({
     .order("timestamp", { ascending: sortDirection === "asc", nullsFirst: sortDirection === "asc" })
     .order("created_at", { ascending: sortDirection === "asc" })
     .range(from, to);
+
+  query = applySiteFilter(query, siteId);
 
   if (filters.location) {
     query = query.ilike("location", `%${filters.location}%`);

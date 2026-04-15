@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 import {
   buildDashboardData,
   collectDashboardYears,
@@ -9,10 +10,11 @@ function normalizeYearMonth(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-async function fetchPriceRows() {
-  const { data, error } = await supabase
-    .from("prices")
-    .select("price, products:product_id(sku)");
+async function fetchPriceRows(siteId = readActiveSiteId()) {
+  const { data, error } = await applySiteFilter(
+    supabase.from("prices").select("price, products:product_id(sku)"),
+    siteId
+  );
 
   if (error) {
     throw new Error(error.message || "Blad pobierania cen");
@@ -24,7 +26,7 @@ async function fetchPriceRows() {
   }));
 }
 
-async function fetchDashboardBaseRows() {
+async function fetchDashboardBaseRows(siteId = readActiveSiteId()) {
   const [
     entriesResult,
     sessionsResult,
@@ -32,20 +34,29 @@ async function fetchDashboardBaseRows() {
     issuesResult,
     priceRows,
   ] = await Promise.all([
-    supabase
+    applySiteFilter(
+      supabase
       .from("entries")
       .select("id, session_id, user_id, operator, site_id, location, sku, quantity, type, timestamp, created_at")
       .order("timestamp", { ascending: false }),
-    supabase
+      siteId
+    ),
+    applySiteFilter(
+      supabase
       .from("sessions")
       .select("id, user_id, operator, site_id, status, started_at, ended_at, last_activity, created_at")
       .order("started_at", { ascending: false }),
-    supabase.from("locations").select("code, zone"),
-    supabase
+      siteId
+    ),
+    applySiteFilter(supabase.from("locations").select("code, zone"), siteId),
+    applySiteFilter(
+      supabase
       .from("empty_location_issues")
       .select("id, zone, created_at")
       .order("created_at", { ascending: false }),
-    fetchPriceRows(),
+      siteId
+    ),
+    fetchPriceRows(siteId),
   ]);
 
   if (entriesResult.error) {
@@ -73,11 +84,11 @@ async function fetchDashboardBaseRows() {
   };
 }
 
-export async function fetchDashboardFilters() {
+export async function fetchDashboardFilters(siteId = readActiveSiteId()) {
   const [entriesResult, sessionsResult, issuesResult] = await Promise.all([
-    supabase.from("entries").select("timestamp, created_at"),
-    supabase.from("sessions").select("started_at, created_at"),
-    supabase.from("empty_location_issues").select("created_at"),
+    applySiteFilter(supabase.from("entries").select("timestamp, created_at"), siteId),
+    applySiteFilter(supabase.from("sessions").select("started_at, created_at"), siteId),
+    applySiteFilter(supabase.from("empty_location_issues").select("created_at"), siteId),
   ]);
 
   if (entriesResult.error || sessionsResult.error || issuesResult.error) {
@@ -131,8 +142,8 @@ async function fetchDashboardViaRpc(year, month) {
   };
 }
 
-async function fetchDashboardViaFallback(year, month) {
-  const baseRows = await fetchDashboardBaseRows();
+async function fetchDashboardViaFallback(year, month, siteId = readActiveSiteId()) {
+  const baseRows = await fetchDashboardBaseRows(siteId);
   const data = buildDashboardData({
     ...baseRows,
     year,
@@ -148,12 +159,17 @@ async function fetchDashboardViaFallback(year, month) {
 export async function fetchDashboardData({ year = null, month = null } = {}) {
   const safeYear = normalizeYearMonth(year);
   const safeMonth = normalizeYearMonth(month);
+  const activeSiteId = readActiveSiteId();
+
+  if (activeSiteId) {
+    return fetchDashboardViaFallback(safeYear, safeMonth, activeSiteId);
+  }
 
   try {
     return await fetchDashboardViaRpc(safeYear, safeMonth);
   } catch (error) {
     console.warn("DASHBOARD RPC FALLBACK:", error);
-    return fetchDashboardViaFallback(safeYear, safeMonth);
+    return fetchDashboardViaFallback(safeYear, safeMonth, activeSiteId);
   }
 }
 

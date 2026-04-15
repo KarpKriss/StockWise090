@@ -710,11 +710,7 @@ export default function EmptyLocationProcessModern() {
                     disabled={submitting}
                     onClick={() => beginZone(zone)}
                   >
-                    <div className="process-zone-card__eyebrow">Strefa</div>
                     <div className="process-zone-card__value">{zone}</div>
-                    <div className="process-zone-card__footer">
-                      Rozpocznij kontrole <ArrowRight size={14} style={{ verticalAlign: "middle" }} />
-                    </div>
                   </button>
                 ))}
               </div>

@@ -7,12 +7,13 @@ import Button from '../../components/ui/Button';
 import StockWiseLoader from '../../components/loaders/StockWiseLoader';
 
 export default function LoginScreenModern() {
-  const { login, user, loading: authLoading } = useAuth();
+  const { login, user, loading: authLoading, availableSites } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
     login: '',
     password: '',
+    siteId: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -29,6 +30,15 @@ export default function LoginScreenModern() {
     if (input) input.focus();
   }, []);
 
+  useEffect(() => {
+    if (availableSites.length === 1 && !form.siteId) {
+      setForm((current) => ({
+        ...current,
+        siteId: availableSites[0].id,
+      }));
+    }
+  }, [availableSites, form.siteId]);
+
   const handleChange = (event) => {
     setForm((current) => ({
       ...current,
@@ -43,6 +53,7 @@ export default function LoginScreenModern() {
 
     if (!form.login) nextErrors.login = 'Wprowadz login';
     if (!form.password) nextErrors.password = 'Wprowadz haslo';
+    if (availableSites.length > 0 && !form.siteId) nextErrors.siteId = 'Wybierz magazyn';
 
     return nextErrors;
   };
@@ -63,7 +74,7 @@ export default function LoginScreenModern() {
     setLoading(true);
 
     try {
-      const result = await login(form.login, form.password);
+      const result = await login(form.login, form.password, form.siteId || null);
 
       if (!result?.success) {
         setErrors({ general: result?.message || 'Blad logowania' });
@@ -92,6 +103,27 @@ export default function LoginScreenModern() {
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
+          {availableSites.length > 0 ? (
+            <div className="app-field">
+              <label className="app-field__label">Magazyn</label>
+              <select
+                name="siteId"
+                value={form.siteId}
+                onChange={handleChange}
+                disabled={loading}
+                className={`app-input ${errors.siteId ? 'is-error' : ''}`.trim()}
+              >
+                <option value="">Wybierz magazyn</option>
+                {availableSites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.label}
+                  </option>
+                ))}
+              </select>
+              {errors.siteId ? <span className="app-field__error">{errors.siteId}</span> : null}
+            </div>
+          ) : null}
+
           <Input
             id="login-input"
             type="text"

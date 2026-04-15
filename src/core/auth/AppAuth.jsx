@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../api/supabaseClient";
 import { logEvent } from "../api/auditApi";
 import { logAuthEvent, logClientError } from "../api/logsApi";
+import { fetchLoginSiteOptions, fetchUserSiteAccess, resolvePreferredSite } from "../api/siteAccessApi";
+import { clearActiveSiteId, normalizeSiteId, readActiveSiteId, writeActiveSiteId } from "./siteScope";
 
 const AuthContext = createContext(null);
 const AUTH_CACHE_KEY = "stockwise-auth-user";
@@ -41,12 +43,18 @@ async function fetchProfileWithRetry(authUser, attempt = 1) {
 }
 
 function buildUser(authUser, profile) {
+  const activeSiteId = normalizeSiteId(profile.active_site_id || profile.site_id);
+  const accessibleSites = Array.isArray(profile.accessible_sites) ? profile.accessible_sites : [];
+
   return {
     id: authUser.id,
     email: authUser.email,
     name: profile.name || authUser.user_metadata?.name || null,
     role: profile.role,
-    site_id: profile.site_id,
+    site_id: activeSiteId,
+    active_site_id: activeSiteId,
+    default_site_id: normalizeSiteId(profile.site_id),
+    accessible_sites: accessibleSites,
     status: profile.status,
     operator_number: profile.operator_number || null,
   };
@@ -83,14 +91,34 @@ function writeCachedUser(user) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readCachedUser());
   const [loading, setLoading] = useState(() => !readCachedUser());
+  const [availableSites, setAvailableSites] = useState([]);
   const userRef = useRef(user);
 
   useEffect(() => {
     userRef.current = user;
     writeCachedUser(user);
+    writeActiveSiteId(user?.active_site_id || user?.site_id || null);
   }, [user]);
 
-  const applyAuthUser = async (authUser) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchLoginSiteOptions()
+      .then((sites) => {
+        if (!cancelled) {
+          setAvailableSites(sites);
+        }
+      })
+      .catch((error) => {
+        console.error("LOGIN SITE OPTIONS LOAD ERROR:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const applyAuthUser = async (authUser, options = {}) => {
     try {
       const profile = await fetchProfileWithRetry(authUser);
 
@@ -112,7 +140,39 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const nextUser = buildUser(authUser, profile);
+      const accessibleSites = await fetchUserSiteAccess({
+        userId: authUser.id,
+        fallbackSiteId: profile.site_id,
+      });
+
+      const explicitPreferredSiteId = normalizeSiteId(options.preferredSiteId || readActiveSiteId());
+      const hasExplicitPreferredSite = explicitPreferredSiteId
+        ? accessibleSites.some(
+            (site) =>
+              normalizeSiteId(site.id) === explicitPreferredSiteId ||
+              String(site.code || "").trim().toLowerCase() === explicitPreferredSiteId.toLowerCase()
+          )
+        : false;
+
+      if (explicitPreferredSiteId && !hasExplicitPreferredSite) {
+        await supabase.auth.signOut();
+        setUser(null);
+        writeCachedUser(null);
+        clearActiveSiteId();
+        return false;
+      }
+
+      const preferredSite = resolvePreferredSite(
+        explicitPreferredSiteId,
+        accessibleSites,
+        profile.site_id
+      );
+
+      const nextUser = buildUser(authUser, {
+        ...profile,
+        active_site_id: preferredSite?.id || profile.site_id,
+        accessible_sites: accessibleSites,
+      });
       setUser(nextUser);
       return true;
     } catch (error) {
@@ -214,7 +274,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, preferredSiteId = null) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -270,12 +330,14 @@ export function AuthProvider({ children }) {
         })
         .eq("user_id", data.user.id);
 
-      const applied = await applyAuthUser(data.user);
+      const applied = await applyAuthUser(data.user, { preferredSiteId });
 
       if (!applied) {
         return {
           success: false,
-          message: "Konto nieaktywne lub zablokowane",
+          message: preferredSiteId
+            ? "Wybrany magazyn nie jest przypisany do tego konta"
+            : "Konto nieaktywne lub zablokowane",
         };
       }
 
@@ -312,11 +374,32 @@ export function AuthProvider({ children }) {
       await supabase.auth.signOut();
       setUser(null);
       writeCachedUser(null);
+      clearActiveSiteId();
     }
   };
 
+  const setActiveSite = (siteId) => {
+    const currentUser = userRef.current;
+    if (!currentUser) return false;
+
+    const preferred = resolvePreferredSite(siteId, currentUser.accessible_sites, currentUser.default_site_id);
+    if (!preferred) {
+      return false;
+    }
+
+    const nextUser = {
+      ...currentUser,
+      site_id: preferred.id,
+      active_site_id: preferred.id,
+    };
+
+    setUser(nextUser);
+    writeActiveSiteId(preferred.id);
+    return true;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, availableSites, setActiveSite }}>
       {children}
     </AuthContext.Provider>
   );

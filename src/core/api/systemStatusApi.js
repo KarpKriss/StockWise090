@@ -1,18 +1,23 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 import { APP_VERSION } from "../config/appMeta";
 import { checkAdminUsersBackendHealth, fetchAdminUsersList } from "./adminUsersApi";
 import { fetchErrorLogs } from "./logsApi";
 
 export async function fetchSystemStatus() {
+  const activeSiteId = readActiveSiteId();
   const summaryResult = await supabase.rpc("get_admin_system_health_summary");
   const alertsResult = await supabase.rpc("get_admin_system_health_alerts");
 
   const [importLogsResult, totalUsersResult, adminUsersEdgeHealth, errorLogs] = await Promise.all([
-    supabase
+    applySiteFilter(
+      supabase
       .from("import_logs")
       .select("id, user_id, type, created_at")
       .order("created_at", { ascending: false })
       .limit(8),
+      activeSiteId
+    ),
     fetchAdminUsersList().catch(() => []),
     checkAdminUsersBackendHealth(),
     fetchErrorLogs({ limit: 8 }).catch(() => []),

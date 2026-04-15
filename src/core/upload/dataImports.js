@@ -1,4 +1,5 @@
 import { supabase } from "../api/supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 import { parseTabularFile } from "../../utils/tabularFile";
 import { resolveMappedValue } from "../utils/importExportMapping";
 import { IMPORT_EXPORT_ENTITIES } from "../config/importExportDefaults";
@@ -19,13 +20,16 @@ function normalizeLookupValue(value) {
     .toUpperCase();
 }
 
-async function fetchAllRows(table, columns, pageSize = 1000) {
+async function fetchAllRows(table, columns, pageSize = 1000, siteId = readActiveSiteId()) {
   const rows = [];
   let from = 0;
 
   while (true) {
     const to = from + pageSize - 1;
-    const { data, error } = await supabase.from(table).select(columns).range(from, to);
+    const { data, error } = await applySiteFilter(
+      supabase.from(table).select(columns),
+      siteId
+    ).range(from, to);
 
     if (error) {
       throw error;
@@ -71,6 +75,7 @@ function ensureRequiredImportColumns(headers, mappingConfig, entityKey) {
 }
 
 export async function buildStockImportPreview(file, mappingConfig) {
+  const activeSiteId = readActiveSiteId();
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
   ensureRequiredImportColumns(headers, mappingConfig, "stock");
 
@@ -102,8 +107,8 @@ export async function buildStockImportPreview(file, mappingConfig) {
   }));
 
   const [locations, products] = await Promise.all([
-    fetchAllRows("locations", "id, code"),
-    fetchAllRows("products", "id, sku"),
+    fetchAllRows("locations", "id, code", 1000, activeSiteId),
+    fetchAllRows("products", "id, sku", 1000, activeSiteId),
   ]);
 
   const locationMap = Object.fromEntries(
@@ -144,10 +149,11 @@ export async function buildStockImportPreview(file, mappingConfig) {
 }
 
 export async function buildPricesImportPreview(file, mappingConfig) {
+  const activeSiteId = readActiveSiteId();
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
   ensureRequiredImportColumns(headers, mappingConfig, "prices");
 
-  const products = await fetchAllRows("products", "id, sku");
+  const products = await fetchAllRows("products", "id, sku", 1000, activeSiteId);
   const productMap = Object.fromEntries(
     products.map((row) => [normalizeLookupValue(row.sku), row.id])
   );

@@ -1,16 +1,17 @@
 import { supabase } from "./supabaseClient";
 import { createImportLog } from "./importLogsApi";
+import { applySiteFilter, ensureRowsScoped, readActiveSiteId } from "../auth/siteScope";
 
 function normalizeSort(sortKey, fallback = "sku") {
   return sortKey || fallback;
 }
 
-export async function fetchStockRows({ search = "", sortKey = "location" } = {}) {
+export async function fetchStockRows({ search = "", sortKey = "location", siteId = readActiveSiteId() } = {}) {
   const [{ data: stock, error }, { data: products }, { data: locations }] =
     await Promise.all([
-      supabase.from("stock").select("id, location_id, product_id, quantity"),
-      supabase.from("products").select("id, sku"),
-      supabase.from("locations").select("id, code, zone"),
+      applySiteFilter(supabase.from("stock").select("id, location_id, product_id, quantity"), siteId),
+      applySiteFilter(supabase.from("products").select("id, sku"), siteId),
+      applySiteFilter(supabase.from("locations").select("id, code, zone"), siteId),
     ]);
 
   if (error) {
@@ -50,7 +51,7 @@ export async function fetchStockRows({ search = "", sortKey = "location" } = {})
   return rows;
 }
 
-export async function replaceStock(validRows) {
+export async function replaceStock(validRows, siteId = readActiveSiteId()) {
   const mergedRows = Array.from(
     validRows.reduce((accumulator, row) => {
       const key = `${row.location_id}::${row.product_id}`;
@@ -70,10 +71,10 @@ export async function replaceStock(validRows) {
     }, new Map()).values()
   );
 
-  const { error: deleteError } = await supabase
-    .from("stock")
-    .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+  const { error: deleteError } = await applySiteFilter(
+    supabase.from("stock").delete(),
+    siteId
+  ).neq("id", "00000000-0000-0000-0000-000000000000");
 
   if (deleteError) {
     console.error("DELETE STOCK ERROR:", deleteError);
@@ -81,7 +82,9 @@ export async function replaceStock(validRows) {
   }
 
   if (mergedRows.length > 0) {
-    const { error: insertError } = await supabase.from("stock").insert(mergedRows);
+    const { error: insertError } = await supabase
+      .from("stock")
+      .insert(ensureRowsScoped(mergedRows, siteId));
 
     if (insertError) {
       console.error("INSERT STOCK ERROR:", insertError);
@@ -105,10 +108,11 @@ export async function fetchLocationsPage({
   search = "",
   zone = "all",
   sortKey = "code",
+  siteId = readActiveSiteId(),
 }) {
   const from = (page - 1) * limit;
   const to = from + limit;
-  let query = supabase.from("locations").select("*");
+  let query = applySiteFilter(supabase.from("locations").select("*"), siteId);
 
   if (search.trim()) {
     query = query.ilike("code", `%${search.trim()}%`);
@@ -136,8 +140,11 @@ export async function fetchLocationsPage({
   };
 }
 
-export async function fetchLocationZones() {
-  const { data, error } = await supabase.from("locations").select("zone");
+export async function fetchLocationZones(siteId = readActiveSiteId()) {
+  const { data, error } = await applySiteFilter(
+    supabase.from("locations").select("zone"),
+    siteId
+  );
 
   if (error) {
     console.error("FETCH LOCATION ZONES ERROR:", error);
@@ -149,11 +156,11 @@ export async function fetchLocationZones() {
   );
 }
 
-export async function replaceLocations(rows) {
-  const { error: deleteError } = await supabase
-    .from("locations")
-    .delete()
-    .not("id", "is", null);
+export async function replaceLocations(rows, siteId = readActiveSiteId()) {
+  const { error: deleteError } = await applySiteFilter(
+    supabase.from("locations").delete(),
+    siteId
+  ).not("id", "is", null);
 
   if (deleteError) {
     console.error("DELETE LOCATIONS ERROR:", deleteError);
@@ -161,7 +168,9 @@ export async function replaceLocations(rows) {
   }
 
   if (rows.length > 0) {
-    const { error: insertError } = await supabase.from("locations").insert(rows);
+    const { error: insertError } = await supabase
+      .from("locations")
+      .insert(ensureRowsScoped(rows, siteId));
 
     if (insertError) {
       console.error("INSERT LOCATIONS ERROR:", insertError);
@@ -172,8 +181,8 @@ export async function replaceLocations(rows) {
   await createImportLog("locations");
 }
 
-export async function addWarehouseLocation({ code, zone, status = "active" }) {
-  const { error } = await supabase.from("locations").insert([{ code, zone, status }]);
+export async function addWarehouseLocation({ code, zone, status = "active", siteId = readActiveSiteId() }) {
+  const { error } = await supabase.from("locations").insert([{ code, zone, status, site_id: siteId }]);
 
   if (error) {
     console.error("ADD LOCATION ERROR:", error);
@@ -181,8 +190,11 @@ export async function addWarehouseLocation({ code, zone, status = "active" }) {
   }
 }
 
-export async function deleteWarehouseLocation(id) {
-  const { error } = await supabase.from("locations").delete().eq("id", id);
+export async function deleteWarehouseLocation(id, siteId = readActiveSiteId()) {
+  const { error } = await applySiteFilter(
+    supabase.from("locations").delete().eq("id", id),
+    siteId
+  );
 
   if (error) {
     console.error("DELETE LOCATION ERROR:", error);
@@ -190,11 +202,11 @@ export async function deleteWarehouseLocation(id) {
   }
 }
 
-export async function resetWarehouseMap() {
-  const { error } = await supabase
-    .from("locations")
-    .delete()
-    .not("id", "is", null);
+export async function resetWarehouseMap(siteId = readActiveSiteId()) {
+  const { error } = await applySiteFilter(
+    supabase.from("locations").delete(),
+    siteId
+  ).not("id", "is", null);
 
   if (error) {
     console.error("RESET LOCATIONS ERROR:", error);
@@ -202,10 +214,11 @@ export async function resetWarehouseMap() {
   }
 }
 
-export async function fetchPriceRows({ search = "", sortKey = "sku" } = {}) {
-  const { data, error } = await supabase
-    .from("prices")
-    .select("id, product_id, price, products:product_id(sku)");
+export async function fetchPriceRows({ search = "", sortKey = "sku", siteId = readActiveSiteId() } = {}) {
+  const { data, error } = await applySiteFilter(
+    supabase.from("prices").select("id, product_id, price, products:product_id(sku)"),
+    siteId
+  );
 
   if (error) {
     console.error("FETCH PRICES ERROR:", error);
@@ -239,8 +252,11 @@ export async function fetchPriceRows({ search = "", sortKey = "sku" } = {}) {
   return rows;
 }
 
-export async function updatePriceRow(id, price) {
-  const { error } = await supabase.from("prices").update({ price }).eq("id", id);
+export async function updatePriceRow(id, price, siteId = readActiveSiteId()) {
+  const { error } = await applySiteFilter(
+    supabase.from("prices").update({ price }).eq("id", id),
+    siteId
+  );
 
   if (error) {
     console.error("UPDATE PRICE ERROR:", error);
@@ -248,8 +264,11 @@ export async function updatePriceRow(id, price) {
   }
 }
 
-export async function deletePriceRow(id) {
-  const { error } = await supabase.from("prices").delete().eq("id", id);
+export async function deletePriceRow(id, siteId = readActiveSiteId()) {
+  const { error } = await applySiteFilter(
+    supabase.from("prices").delete().eq("id", id),
+    siteId
+  );
 
   if (error) {
     console.error("DELETE PRICE ERROR:", error);
@@ -257,22 +276,20 @@ export async function deletePriceRow(id) {
   }
 }
 
-export async function createPriceRow({ sku, price }) {
-  const { data: product, error: productError } = await supabase
-    .from("products")
-    .select("id")
-    .eq("sku", sku)
-    .single();
+export async function createPriceRow({ sku, price, siteId = readActiveSiteId() }) {
+  const { data: product, error: productError } = await applySiteFilter(
+    supabase.from("products").select("id").eq("sku", sku),
+    siteId
+  ).single();
 
   if (productError || !product) {
     throw new Error("Nie znaleziono SKU");
   }
 
-  const { data: existing } = await supabase
-    .from("prices")
-    .select("id")
-    .eq("product_id", product.id)
-    .maybeSingle();
+  const { data: existing } = await applySiteFilter(
+    supabase.from("prices").select("id").eq("product_id", product.id),
+    siteId
+  ).maybeSingle();
 
   if (existing?.id) {
     throw new Error("Cena dla tego SKU juz istnieje");
@@ -280,7 +297,7 @@ export async function createPriceRow({ sku, price }) {
 
   const { error } = await supabase
     .from("prices")
-    .insert([{ product_id: product.id, price }]);
+    .insert([{ product_id: product.id, price, site_id: siteId }]);
 
   if (error) {
     console.error("CREATE PRICE ERROR:", error);
@@ -288,13 +305,16 @@ export async function createPriceRow({ sku, price }) {
   }
 }
 
-export async function insertNewPrices(rows) {
-  const { data: existing } = await supabase.from("prices").select("product_id");
+export async function insertNewPrices(rows, siteId = readActiveSiteId()) {
+  const { data: existing } = await applySiteFilter(
+    supabase.from("prices").select("product_id"),
+    siteId
+  );
   const existingIds = new Set((existing || []).map((row) => row.product_id));
   const newRows = rows.filter((row) => !existingIds.has(row.product_id));
 
   if (newRows.length > 0) {
-    const { error } = await supabase.from("prices").insert(newRows);
+    const { error } = await supabase.from("prices").insert(ensureRowsScoped(newRows, siteId));
 
     if (error) {
       console.error("INSERT PRICES ERROR:", error);
@@ -306,10 +326,11 @@ export async function insertNewPrices(rows) {
   return { inserted: newRows.length, skipped: rows.length - newRows.length };
 }
 
-export async function fetchProductRows({ search = "", sortKey = "sku" } = {}) {
-  const { data, error } = await supabase
-    .from("products")
-    .select("id, sku, ean, name, status");
+export async function fetchProductRows({ search = "", sortKey = "sku", siteId = readActiveSiteId() } = {}) {
+  const { data, error } = await applySiteFilter(
+    supabase.from("products").select("id, sku, ean, name, status"),
+    siteId
+  );
 
   if (error) {
     console.error("FETCH PRODUCTS ERROR:", error);
@@ -333,13 +354,16 @@ export async function fetchProductRows({ search = "", sortKey = "sku" } = {}) {
   );
 }
 
-export async function insertProducts(rows) {
-  const { data: existing } = await supabase.from("products").select("sku");
+export async function insertProducts(rows, siteId = readActiveSiteId()) {
+  const { data: existing } = await applySiteFilter(
+    supabase.from("products").select("sku"),
+    siteId
+  );
   const existingSkus = new Set((existing || []).map((row) => row.sku));
   const newRows = rows.filter((row) => !existingSkus.has(row.sku));
 
   if (newRows.length > 0) {
-    const { error } = await supabase.from("products").insert(newRows);
+    const { error } = await supabase.from("products").insert(ensureRowsScoped(newRows, siteId));
 
     if (error) {
       console.error("INSERT PRODUCTS ERROR:", error);
@@ -351,22 +375,31 @@ export async function insertProducts(rows) {
   return { inserted: newRows.length, skipped: rows.length - newRows.length };
 }
 
-export async function deleteProductRow(id) {
-  const { error: deletePricesError } = await supabase.from("prices").delete().eq("product_id", id);
+export async function deleteProductRow(id, siteId = readActiveSiteId()) {
+  const { error: deletePricesError } = await applySiteFilter(
+    supabase.from("prices").delete().eq("product_id", id),
+    siteId
+  );
 
   if (deletePricesError) {
     console.error("DELETE PRODUCT PRICES ERROR:", deletePricesError);
     throw new Error(deletePricesError.message || "Blad usuwania cen powiazanych z produktem");
   }
 
-  const { error: deleteStockError } = await supabase.from("stock").delete().eq("product_id", id);
+  const { error: deleteStockError } = await applySiteFilter(
+    supabase.from("stock").delete().eq("product_id", id),
+    siteId
+  );
 
   if (deleteStockError) {
     console.error("DELETE PRODUCT STOCK ERROR:", deleteStockError);
     throw new Error(deleteStockError.message || "Blad usuwania stocku powiazanego z produktem");
   }
 
-  const { error } = await supabase.from("products").delete().eq("id", id);
+  const { error } = await applySiteFilter(
+    supabase.from("products").delete().eq("id", id),
+    siteId
+  );
 
   if (error) {
     console.error("DELETE PRODUCT ERROR:", error);
@@ -374,31 +407,31 @@ export async function deleteProductRow(id) {
   }
 }
 
-export async function resetProducts() {
-  const { error: deletePricesError } = await supabase
-    .from("prices")
-    .delete()
-    .not("id", "is", null);
+export async function resetProducts(siteId = readActiveSiteId()) {
+  const { error: deletePricesError } = await applySiteFilter(
+    supabase.from("prices").delete(),
+    siteId
+  ).not("id", "is", null);
 
   if (deletePricesError) {
     console.error("RESET PRODUCT PRICES ERROR:", deletePricesError);
     throw new Error(deletePricesError.message || "Blad resetowania cen produktow");
   }
 
-  const { error: deleteStockError } = await supabase
-    .from("stock")
-    .delete()
-    .not("id", "is", null);
+  const { error: deleteStockError } = await applySiteFilter(
+    supabase.from("stock").delete(),
+    siteId
+  ).not("id", "is", null);
 
   if (deleteStockError) {
     console.error("RESET PRODUCT STOCK ERROR:", deleteStockError);
     throw new Error(deleteStockError.message || "Blad resetowania stocku powiazanego z produktami");
   }
 
-  const { error } = await supabase
-    .from("products")
-    .delete()
-    .not("id", "is", null);
+  const { error } = await applySiteFilter(
+    supabase.from("products").delete(),
+    siteId
+  ).not("id", "is", null);
 
   if (error) {
     console.error("RESET PRODUCTS ERROR:", error);
@@ -406,11 +439,14 @@ export async function resetProducts() {
   }
 }
 
-export async function fetchCorrectionRows() {
-  const { data, error } = await supabase
-    .from("correction_log")
-    .select("id, entry_id, user_id, reason, old_value, new_value, created_at")
-    .order("created_at", { ascending: false });
+export async function fetchCorrectionRows(siteId = readActiveSiteId()) {
+  const { data, error } = await applySiteFilter(
+    supabase
+      .from("correction_log")
+      .select("id, entry_id, user_id, reason, old_value, new_value, created_at")
+      .order("created_at", { ascending: false }),
+    siteId
+  );
 
   if (error) {
     console.error("FETCH CORRECTIONS ERROR:", error);

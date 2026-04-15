@@ -1,9 +1,10 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 
-export async function fetchStock({ search = "", sort = null } = {}) {
- let query = supabase
+export async function fetchStock({ search = "", sort = null, siteId = readActiveSiteId() } = {}) {
+ let query = applySiteFilter(supabase
   .from("stock")
-  .select("location_id, product_id, quantity");
+  .select("location_id, product_id, quantity"), siteId);
 
  
 
@@ -16,14 +17,16 @@ export async function fetchStock({ search = "", sort = null } = {}) {
   const { data, error } = await query;
 
   // 🔥 pobierz produkty
-const { data: products } = await supabase
-  .from("products")
-  .select("id, sku");
+const { data: products } = await applySiteFilter(
+  supabase.from("products").select("id, sku"),
+  siteId
+);
 
 // 🔥 pobierz lokalizacje
-const { data: locations } = await supabase
-  .from("locations")
-  .select("id, code");
+const { data: locations } = await applySiteFilter(
+  supabase.from("locations").select("id, code"),
+  siteId
+);
 
 // 🔥 mapy
 const productMap = Object.fromEntries(products.map(p => [p.id, p.sku]));
@@ -55,9 +58,9 @@ const locationMap = Object.fromEntries(locations.map(l => [l.id, l.code]));
 }
 
 export async function fetchPrices({ sort = null, search = "" } = {}) {
- let query = supabase
+ let query = applySiteFilter(supabase
   .from("prices")
-  .select("id, product_id, price, products:product_id(sku)");
+  .select("id, product_id, price, products:product_id(sku)"), readActiveSiteId());
 
 const { data, error } = await query;
 
@@ -83,11 +86,10 @@ return result;
 }
 
 export async function updatePrice(id, price) {
-  const { data, error } = await supabase
-    .from("prices")
-    .update({ price })
-    .eq("id", id)
-    .select();
+  const { data, error } = await applySiteFilter(
+    supabase.from("prices").update({ price }).eq("id", id).select(),
+    readActiveSiteId()
+  );
 
   if (error) {
     console.error(error);
@@ -98,7 +100,10 @@ export async function updatePrice(id, price) {
 }
 
 export async function deletePrice(id) {
-  const { error } = await supabase.from("prices").delete().eq("id", id);
+  const { error } = await applySiteFilter(
+    supabase.from("prices").delete().eq("id", id),
+    readActiveSiteId()
+  );
 
   if (error) {
     console.error(error);
@@ -109,11 +114,10 @@ export async function deletePrice(id) {
 }
 
 export async function getProductBySku(sku) {
-  const { data, error } = await supabase
-    .from("products")
-    .select("id")
-    .eq("sku", sku)
-    .single();
+  const { data, error } = await applySiteFilter(
+    supabase.from("products").select("id").eq("sku", sku),
+    readActiveSiteId()
+  ).single();
 
   if (error || !data) {
     throw new Error("Nie znaleziono SKU");

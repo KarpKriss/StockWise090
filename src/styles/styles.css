@@ -839,9 +839,9 @@ table th {
   padding: 20px;
   min-height: 110px;
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  text-align: left;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .process-zone-card__eyebrow {
@@ -856,6 +856,7 @@ table th {
   font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.04em;
+  line-height: 1;
 }
 
 .process-zone-card__footer {

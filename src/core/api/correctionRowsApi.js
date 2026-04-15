@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 
 function normalizeCorrectionRow(row, profileMap) {
   const profile = profileMap.get(row.user_id) || null;
@@ -11,11 +12,14 @@ function normalizeCorrectionRow(row, profileMap) {
   };
 }
 
-export async function fetchCorrectionRowsWithProblems() {
-  const correctionsResult = await supabase
-    .from("correction_log")
-    .select("id, entry_id, user_id, reason, comment, old_value, new_value, created_at")
-    .order("created_at", { ascending: false });
+export async function fetchCorrectionRowsWithProblems(siteId = readActiveSiteId()) {
+  const correctionsResult = await applySiteFilter(
+    supabase
+      .from("correction_log")
+      .select("id, entry_id, user_id, reason, comment, old_value, new_value, created_at")
+      .order("created_at", { ascending: false }),
+    siteId
+  );
 
   if (correctionsResult.error) {
     console.error("FETCH CORRECTIONS ERROR:", correctionsResult.error);
