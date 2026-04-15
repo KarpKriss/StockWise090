@@ -143,6 +143,7 @@ export default function WarehouseMapPanel() {
           setZoneFilter(value);
         }}
         locationsList={zones}
+        locationValue={zoneFilter}
         onImport={openImport}
         onExport={() =>
           exportToCSV({

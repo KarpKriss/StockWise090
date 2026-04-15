@@ -106,8 +106,10 @@ export default function StockPanel() {
         onSortChange={setSortKey}
         onLocationChange={setLocationFilter}
         locationsList={locationsList}
+        locationValue={locationFilter}
         onSkuChange={setSkuFilter}
         skuList={skuList}
+        skuValue={skuFilter}
         onImport={openImport}
         onExport={() =>
           exportToCSV({

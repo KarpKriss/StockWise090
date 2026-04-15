@@ -12,8 +12,10 @@ export default function DataTablePanelModern({
   onSortChange,
   onLocationChange,
   locationsList = [],
+  locationValue = "all",
   onSkuChange,
   skuList = [],
+  skuValue = "all",
   searchPlaceholder,
   onDelete,
   onEdit,
@@ -118,7 +120,7 @@ export default function DataTablePanelModern({
           </div>
 
           {skuList.length > 0 ? (
-            <select onChange={(event) => onSkuChange && onSkuChange(event.target.value)}>
+            <select value={skuValue} onChange={(event) => onSkuChange && onSkuChange(event.target.value)}>
               <option value="all">Wszystkie SKU</option>
               {skuList.map((sku) => (
                 <option key={sku} value={sku}>
@@ -129,7 +131,7 @@ export default function DataTablePanelModern({
           ) : null}
 
           {locationsList.length > 0 ? (
-            <select onChange={(event) => onLocationChange && onLocationChange(event.target.value)}>
+            <select value={locationValue} onChange={(event) => onLocationChange && onLocationChange(event.target.value)}>
               <option value="all">Wszystkie lokalizacje</option>
               {locationsList.map((location) => (
                 <option key={location} value={location}>

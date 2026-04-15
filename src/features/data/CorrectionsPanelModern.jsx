@@ -4,6 +4,9 @@ import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { exportToCSV } from "../../utils/csvExport";
 import { fetchCorrectionRowsWithProblems } from "../../core/api/correctionRowsApi";
+import { useAuth } from "../../core/auth/AppAuth";
+import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
+import { getMappedExportColumns } from "../../core/utils/importExportMapping";
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "-";
@@ -30,6 +33,7 @@ function buildChangeRows(row) {
 }
 
 export default function CorrectionsPanelModern() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [selectedUser, setSelectedUser] = useState("all");
   const [search, setSearch] = useState("");
@@ -38,6 +42,7 @@ export default function CorrectionsPanelModern() {
   const [selectedRow, setSelectedRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapping, setMapping] = useState(null);
 
   useEffect(() => {
     async function loadRows() {
@@ -54,6 +59,18 @@ export default function CorrectionsPanelModern() {
 
     loadRows();
   }, []);
+
+  useEffect(() => {
+    async function loadMapping() {
+      try {
+        setMapping(await fetchImportExportMapping(user?.site_id || null));
+      } catch (err) {
+        console.error("CORRECTIONS MAPPING LOAD ERROR:", err);
+      }
+    }
+
+    loadMapping();
+  }, [user?.site_id]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -87,14 +104,14 @@ export default function CorrectionsPanelModern() {
   }, [rows]);
 
   const exportRows = filteredRows.map((row) => ({
-    data_korekty: formatDate(row.created_at),
+    created_at: formatDate(row.created_at),
     user_id: row.user_id || "",
     operator: row.user_name || row.user_email || row.user_id || "",
     entry_id: row.entry_id || "",
     reason: row.reason || "",
     comment: row.comment || "",
-    before: JSON.stringify(row.old_value || {}),
-    after: JSON.stringify(row.new_value || {}),
+    old_value: JSON.stringify(row.old_value || {}),
+    new_value: JSON.stringify(row.new_value || {}),
   }));
 
   return (
@@ -110,16 +127,7 @@ export default function CorrectionsPanelModern() {
           onClick={() =>
             exportToCSV({
               data: exportRows,
-              columns: [
-                { key: "data_korekty", label: "Data korekty" },
-                { key: "user_id", label: "User ID" },
-                { key: "operator", label: "Operator" },
-                { key: "entry_id", label: "Entry ID" },
-                { key: "reason", label: "Powod" },
-                { key: "comment", label: "Komentarz" },
-                { key: "before", label: "Before" },
-                { key: "after", label: "After" },
-              ],
+              columns: getMappedExportColumns("corrections", mapping),
               fileName: "correction-log.csv",
             })
           }
