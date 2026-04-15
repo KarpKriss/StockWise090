@@ -51,6 +51,25 @@ export async function fetchStockRows({ search = "", sortKey = "location" } = {})
 }
 
 export async function replaceStock(validRows) {
+  const mergedRows = Array.from(
+    validRows.reduce((accumulator, row) => {
+      const key = `${row.location_id}::${row.product_id}`;
+      const existing = accumulator.get(key);
+
+      if (existing) {
+        existing.quantity += Number(row.quantity || 0);
+      } else {
+        accumulator.set(key, {
+          location_id: row.location_id,
+          product_id: row.product_id,
+          quantity: Number(row.quantity || 0),
+        });
+      }
+
+      return accumulator;
+    }, new Map()).values()
+  );
+
   const { error: deleteError } = await supabase
     .from("stock")
     .delete()
@@ -61,8 +80,8 @@ export async function replaceStock(validRows) {
     throw new Error(deleteError.message || "Blad czyszczenia stocku");
   }
 
-  if (validRows.length > 0) {
-    const { error: insertError } = await supabase.from("stock").insert(validRows);
+  if (mergedRows.length > 0) {
+    const { error: insertError } = await supabase.from("stock").insert(mergedRows);
 
     if (insertError) {
       console.error("INSERT STOCK ERROR:", insertError);
