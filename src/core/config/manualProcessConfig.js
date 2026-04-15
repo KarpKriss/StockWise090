@@ -238,6 +238,7 @@ export function serializeManualProcessConfig(config) {
     steps: normalized.steps,
     operationTypes: normalized.operationTypes,
     validation: normalized.validation,
+    scanning: normalized.scanning,
   };
 }
 
