@@ -10,6 +10,10 @@ function normalizeHeader(value) {
     .replace(/\uFEFF/g, "");
 }
 
+function normalizeLookupValue(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
 function ensureRequiredImportColumns(headers, mappingConfig, entityKey) {
   const entity = IMPORT_EXPORT_ENTITIES[entityKey];
   if (!entity) return;
@@ -72,15 +76,21 @@ export async function buildStockImportPreview(file, mappingConfig) {
     supabase.from("products").select("id, sku"),
   ]);
 
-  const locationMap = Object.fromEntries((locations || []).map((row) => [row.code, row.id]));
-  const productMap = Object.fromEntries((products || []).map((row) => [row.sku, row.id]));
+  const locationMap = Object.fromEntries(
+    (locations || []).map((row) => [normalizeLookupValue(row.code), row.id])
+  );
+  const productMap = Object.fromEntries(
+    (products || []).map((row) => [normalizeLookupValue(row.sku), row.id])
+  );
   const valid = [];
   const invalid = [];
 
   parsed.forEach((row) => {
     const errors = [];
-    const location_id = locationMap[row.location_code];
-    const product_id = productMap[row.sku];
+    const normalizedLocationCode = normalizeLookupValue(row.location_code);
+    const normalizedSku = normalizeLookupValue(row.sku);
+    const location_id = locationMap[normalizedLocationCode];
+    const product_id = productMap[normalizedSku];
     const quantity = Number(row.quantity);
 
     if (!row.location_code) errors.push("Brak lokalizacji");
