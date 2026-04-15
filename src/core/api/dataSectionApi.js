@@ -326,6 +326,20 @@ export async function insertProducts(rows) {
 }
 
 export async function deleteProductRow(id) {
+  const { error: deletePricesError } = await supabase.from("prices").delete().eq("product_id", id);
+
+  if (deletePricesError) {
+    console.error("DELETE PRODUCT PRICES ERROR:", deletePricesError);
+    throw new Error(deletePricesError.message || "Blad usuwania cen powiazanych z produktem");
+  }
+
+  const { error: deleteStockError } = await supabase.from("stock").delete().eq("product_id", id);
+
+  if (deleteStockError) {
+    console.error("DELETE PRODUCT STOCK ERROR:", deleteStockError);
+    throw new Error(deleteStockError.message || "Blad usuwania stocku powiazanego z produktem");
+  }
+
   const { error } = await supabase.from("products").delete().eq("id", id);
 
   if (error) {
@@ -335,6 +349,26 @@ export async function deleteProductRow(id) {
 }
 
 export async function resetProducts() {
+  const { error: deletePricesError } = await supabase
+    .from("prices")
+    .delete()
+    .not("id", "is", null);
+
+  if (deletePricesError) {
+    console.error("RESET PRODUCT PRICES ERROR:", deletePricesError);
+    throw new Error(deletePricesError.message || "Blad resetowania cen produktow");
+  }
+
+  const { error: deleteStockError } = await supabase
+    .from("stock")
+    .delete()
+    .not("id", "is", null);
+
+  if (deleteStockError) {
+    console.error("RESET PRODUCT STOCK ERROR:", deleteStockError);
+    throw new Error(deleteStockError.message || "Blad resetowania stocku powiazanego z produktami");
+  }
+
   const { error } = await supabase
     .from("products")
     .delete()
