@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, normalizeSiteId, readActiveSiteId } from "../auth/siteScope";
 
 function sortByNewest(rows) {
   return [...rows].sort(
@@ -15,21 +16,31 @@ function normalizeProblemRow(row) {
   };
 }
 
-export async function fetchProblemRows() {
-  const rpcResult = await supabase.rpc("get_problem_cases");
+export async function fetchProblemRows(siteId = readActiveSiteId()) {
+  const safeSiteId = normalizeSiteId(siteId);
+  let rpcRows = null;
 
-  if (!rpcResult.error && Array.isArray(rpcResult.data)) {
-    return sortByNewest(rpcResult.data.map(normalizeProblemRow));
+  if (!safeSiteId) {
+    const rpcResult = await supabase.rpc("get_problem_cases");
+
+    if (!rpcResult.error && Array.isArray(rpcResult.data)) {
+      rpcRows = rpcResult.data;
+    } else if (rpcResult.error) {
+      console.warn("FETCH PROBLEM CASES RPC ERROR:", rpcResult.error);
+    }
   }
 
-  if (rpcResult.error) {
-    console.warn("FETCH PROBLEM CASES RPC ERROR:", rpcResult.error);
+  if (Array.isArray(rpcRows)) {
+    return sortByNewest(rpcRows.map(normalizeProblemRow));
   }
 
-  const { data, error } = await supabase
-    .from("empty_location_issues")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data, error } = await applySiteFilter(
+    supabase
+      .from("empty_location_issues")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    safeSiteId
+  );
 
   if (error) {
     console.error("FETCH PROBLEMS ERROR:", error);
@@ -43,10 +54,13 @@ export async function fetchProblemRows() {
     return normalizedRows;
   }
 
-  const { data: locationsData, error: locationsError } = await supabase
-    .from("locations")
-    .select("id, code, zone")
-    .in("id", locationIds);
+  const { data: locationsData, error: locationsError } = await applySiteFilter(
+    supabase
+      .from("locations")
+      .select("id, code, zone")
+      .in("id", locationIds),
+    safeSiteId
+  );
 
   if (locationsError) {
     console.warn("FETCH PROBLEM LOCATIONS LOOKUP ERROR:", locationsError);

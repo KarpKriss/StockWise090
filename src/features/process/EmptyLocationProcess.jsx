@@ -300,6 +300,7 @@ export default function EmptyLocationProcess() {
       const resolvedProduct = await resolveProductForSurplus({
         sku: payload.sku,
         ean: payload.ean,
+        siteId: user?.site_id,
       });
 
       if (!resolvedProduct) {

@@ -1,18 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { reportInventoryProblem } from "./problemsApi";
-
-function normalizeUuidLike(value) {
-  const normalized = String(value || "").trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-  return uuidRegex.test(normalized) ? normalized : null;
-}
+import { applySiteFilter, normalizeSiteId } from "../auth/siteScope";
 
 function unwrapRpcRows(data) {
   if (Array.isArray(data)) {
@@ -32,7 +20,7 @@ function isLocationReadyStatus(status) {
 }
 
 export async function fetchEmptyLocationZones({ siteId } = {}) {
-  const safeSiteId = normalizeUuidLike(siteId);
+  const safeSiteId = normalizeSiteId(siteId);
   let zonesResult = await supabase.rpc("get_empty_location_zones", {
     p_site_id: safeSiteId,
   });
@@ -40,11 +28,10 @@ export async function fetchEmptyLocationZones({ siteId } = {}) {
   if (zonesResult.error) {
     console.warn("FETCH EMPTY ZONES RPC ERROR:", zonesResult.error);
 
-    let fallbackQuery = supabase.from("locations").select("zone, status");
-
-    if (safeSiteId) {
-      fallbackQuery = fallbackQuery.eq("site_id", safeSiteId);
-    }
+    let fallbackQuery = applySiteFilter(
+      supabase.from("locations").select("zone, status"),
+      safeSiteId
+    );
 
     zonesResult = await fallbackQuery;
   }
@@ -70,23 +57,16 @@ export async function fetchQuickStartAnchorLocation({ code, siteId } = {}) {
     throw new Error("Najpierw zeskanuj lub wpisz lokalizacje startowa.");
   }
 
-  const safeSiteId = normalizeUuidLike(siteId);
-  let query = supabase
-    .from("locations")
-    .select("id, code, zone, status, locked_by, locked_at, session_id, site_id")
-    .eq("code", normalizedCode)
-    .limit(1)
-    .maybeSingle();
-
-  if (safeSiteId) {
-    query = supabase
+  const safeSiteId = normalizeSiteId(siteId);
+  let query = applySiteFilter(
+    supabase
       .from("locations")
       .select("id, code, zone, status, locked_by, locked_at, session_id, site_id")
       .eq("code", normalizedCode)
-      .eq("site_id", safeSiteId)
       .limit(1)
-      .maybeSingle();
-  }
+      .maybeSingle(),
+    safeSiteId
+  );
 
   const { data, error } = await query;
 
@@ -107,14 +87,15 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
     return { locations: [], totalCount: 0 };
   }
 
-  const safeSiteId = normalizeUuidLike(siteId);
+  const safeSiteId = normalizeSiteId(siteId);
   const pageSize = 1000;
   const allLocations = [];
   let offset = 0;
 
-  const { data: stockRows, error: stockError } = await supabase
-    .from("stock")
-    .select("location_id");
+  const { data: stockRows, error: stockError } = await applySiteFilter(
+    supabase.from("stock").select("location_id"),
+    safeSiteId
+  );
 
   if (stockError) {
     console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", stockError);
@@ -122,17 +103,16 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
   }
 
   while (true) {
-    let query = supabase
-      .from("locations")
-      .select("id, code, zone, status, locked_by, locked_at, site_id")
-      .eq("zone", zone)
-      .in("status", ["active", "pending"])
-      .order("code", { ascending: true })
-      .range(offset, offset + pageSize - 1);
-
-    if (safeSiteId) {
-      query = query.eq("site_id", safeSiteId);
-    }
+    let query = applySiteFilter(
+      supabase
+        .from("locations")
+        .select("id, code, zone, status, locked_by, locked_at, site_id")
+        .eq("zone", zone)
+        .in("status", ["active", "pending"])
+        .order("code", { ascending: true })
+        .range(offset, offset + pageSize - 1),
+      safeSiteId
+    );
 
     const { data, error } = await query;
 
@@ -257,10 +237,14 @@ export async function reportLocationSurplus({
   return data;
 }
 
-export async function resolveProductForSurplus({ sku, ean }) {
+export async function resolveProductForSurplus({ sku, ean, siteId } = {}) {
   const normalizedSku = String(sku || "").trim();
   const normalizedEan = String(ean || "").trim();
-  let query = supabase.from("products").select("id, sku, ean").limit(1);
+  const safeSiteId = normalizeSiteId(siteId);
+  let query = applySiteFilter(
+    supabase.from("products").select("id, sku, ean").limit(1),
+    safeSiteId
+  );
 
   if (normalizedSku) {
     query = query.eq("sku", normalizedSku);

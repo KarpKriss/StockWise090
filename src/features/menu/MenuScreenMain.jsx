@@ -67,6 +67,27 @@ export default function MenuScreenMain() {
   const role = user?.role?.toLowerCase();
   const displayName = user?.name || user?.email?.split("@")[0] || "Operator";
   const RoleIcon = roleIconMap[role] || User;
+  const activeSite = useMemo(() => {
+    const accessibleSites = Array.isArray(user?.accessible_sites) ? user.accessible_sites : [];
+    const matchedSite = accessibleSites.find((site) => site?.id === user?.site_id);
+
+    if (matchedSite) {
+      return matchedSite;
+    }
+
+    return user?.site_id
+      ? {
+          id: user.site_id,
+          code: user.site_id,
+          name: null,
+        }
+      : null;
+  }, [user?.accessible_sites, user?.site_id]);
+  const activeSiteLabel = activeSite
+    ? activeSite.name
+      ? `${activeSite.name} (${activeSite.code || activeSite.id})`
+      : activeSite.code || activeSite.id
+    : "Brak przypisanego magazynu";
   const filteredMenu = menuItems.filter((item) => hasPermission(role, item.permission));
   const [quickStartOpen, setQuickStartOpen] = useState(false);
   const [quickStartCode, setQuickStartCode] = useState("");
@@ -187,6 +208,10 @@ export default function MenuScreenMain() {
           <div className="menu-summary__name">{displayName}</div>
           <div className="menu-summary__role">
             Rola: <strong>{roleLabelMap[role] || role || "Brak"}</strong>
+          </div>
+          <div className="menu-summary__site">
+            <span className="menu-summary__site-label">Magazyn</span>
+            <span className="menu-summary__site-pill">{activeSiteLabel}</span>
           </div>
         </div>
       </div>

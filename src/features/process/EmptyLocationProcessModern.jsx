@@ -584,6 +584,7 @@ export default function EmptyLocationProcessModern() {
       const resolvedProduct = await resolveProductForSurplus({
         sku: surplusData.sku.trim(),
         ean: surplusData.ean || null,
+        siteId: user?.site_id,
       });
 
       if (!resolvedProduct) {

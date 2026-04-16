@@ -4,6 +4,7 @@ import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { fetchProblemRows, resolveProblemCase } from "../../core/api/problemsApi";
 import { exportToCSV } from "../../utils/csvExport";
+import { useAuth } from "../../core/auth/AppAuth";
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "-";
@@ -26,6 +27,7 @@ function sourceHint(value) {
 }
 
 export default function ProblemsPanelModern() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState("open");
   const [selectedSource, setSelectedSource] = useState("all");
@@ -37,7 +39,7 @@ export default function ProblemsPanelModern() {
   async function loadRows() {
     try {
       setLoading(true);
-      setRows(await fetchProblemRows());
+      setRows(await fetchProblemRows(user?.site_id));
       setError("");
     } catch (err) {
       setError(err.message || "Blad pobierania problemow");
@@ -48,7 +50,7 @@ export default function ProblemsPanelModern() {
 
   useEffect(() => {
     loadRows();
-  }, []);
+  }, [user?.site_id]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
