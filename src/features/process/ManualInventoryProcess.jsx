@@ -106,6 +106,7 @@ export default function ManualInventoryProcess() {
   const [timeWarning, setTimeWarning] = useState("");
   const [savedCountForLocation, setSavedCountForLocation] = useState(0);
   const [problemNote, setProblemNote] = useState("");
+  const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
   const [scannerModal, setScannerModal] = useState({
     open: false,
     fieldKey: null,
@@ -155,6 +156,18 @@ export default function ManualInventoryProcess() {
         return "Proces reczny";
     }
   }, [stage]);
+
+  const processStageNote = useMemo(() => {
+    if (stage === "location") {
+      return "";
+    }
+
+    if (currentLocation) {
+      return `Pracujesz teraz na lokalizacji ${currentLocation.code}.`;
+    }
+
+    return "Po wyborze lokalizacji tutaj zobaczysz jej kontekst.";
+  }, [currentLocation, stage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -680,6 +693,28 @@ export default function ManualInventoryProcess() {
     navigate("/menu");
   }
 
+  function requestEndSession() {
+    setEndSessionModalOpen(true);
+  }
+
+  function closeEndSessionModal() {
+    if (submitting) {
+      return;
+    }
+
+    setEndSessionModalOpen(false);
+  }
+
+  async function confirmEndSession() {
+    try {
+      setSubmitting(true);
+      await handleEndSession();
+    } finally {
+      setEndSessionModalOpen(false);
+      setSubmitting(false);
+    }
+  }
+
   async function handlePauseSession() {
     await handleAbandonLocation();
     await pauseSession();
@@ -701,7 +736,7 @@ export default function ManualInventoryProcess() {
       title="Reczna inwentaryzacja"
       subtitle="Na telefonie proces zostaje prosty i pionowy, a na desktopie zamienia sie w spokojny panel roboczy z wyraznym kontekstem sesji obok."
       icon={<ScanSearch size={26} />}
-      onBack={handleEndSession}
+      onBack={requestEndSession}
       backLabel="Zakoncz sesje i wyjdz"
       actions={
         <div className="page-shell__pill">
@@ -931,13 +966,7 @@ export default function ManualInventoryProcess() {
             </div>
 
             <div className="process-sidebar-stage">{processStageLabel}</div>
-            <div className="process-sidebar-note">
-              {stage === "location"
-                ? "Na desktopie pole skanowania zostaje w centrum, bez zbednego rozciagania calego widoku."
-                : currentLocation
-                  ? `Pracujesz teraz na lokalizacji ${currentLocation.code}.`
-                  : "Po wyborze lokalizacji tutaj zobaczysz jej kontekst."}
-            </div>
+            {processStageNote ? <div className="process-sidebar-note">{processStageNote}</div> : null}
           </div>
 
           {currentLocation ? (
@@ -955,11 +984,10 @@ export default function ManualInventoryProcess() {
                 <div className="process-sidebar-card__icon">
                   <ClipboardList size={18} />
                 </div>
-                <div>
-                  <h3 className="process-sidebar-card__title">Biezace dane</h3>
-                  <p className="process-panel__subtitle">Szybki podglad tego, co operator wpisal do formularza.</p>
-                </div>
+              <div>
+                <h3 className="process-sidebar-card__title">Biezace dane</h3>
               </div>
+            </div>
 
               <div className="process-sidebar-card__list">
                 {summaryRows.map(([label, value]) => (
@@ -979,7 +1007,6 @@ export default function ManualInventoryProcess() {
               </div>
               <div>
                 <h3 className="process-sidebar-card__title">Sterowanie sesja</h3>
-                <p className="process-panel__subtitle">Najwazniejsze akcje sesji sa zawsze pod reka, ale nie rozpychaja glownego panelu.</p>
               </div>
             </div>
 
@@ -988,13 +1015,57 @@ export default function ManualInventoryProcess() {
                 <PauseCircle size={16} />
                 Wstrzymaj prace
               </Button>
-              <Button variant="secondary" size="lg" disabled={submitting} onClick={handleEndSession}>
+              <Button variant="secondary" size="lg" disabled={submitting} onClick={requestEndSession}>
                 Zakoncz sesje
               </Button>
             </div>
           </div>
         </aside>
       </div>
+
+      {endSessionModalOpen ? (
+        <div className="history-modal-overlay" onClick={closeEndSessionModal}>
+          <div className="history-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="history-modal__header">
+              <div>
+                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
+                  Zakonczyc sesje recznej inwentaryzacji?
+                </h2>
+                <p className="process-panel__subtitle">
+                  Biezaca lokalizacja zostanie zwrocona do puli, a operator wroci do menu glownego.
+                </p>
+              </div>
+              <Button variant="secondary" onClick={closeEndSessionModal}>
+                Anuluj
+              </Button>
+            </div>
+
+            <div className="process-meta-grid" style={{ marginBottom: 18 }}>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Lokalizacja</div>
+                <div className="process-meta-item__value">{currentLocation?.code || "-"}</div>
+              </div>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Strefa</div>
+                <div className="process-meta-item__value">{currentLocation?.zone || currentZone || sessionZone || "-"}</div>
+              </div>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Zapisane operacje</div>
+                <div className="process-meta-item__value">{savedCountForLocation}</div>
+              </div>
+            </div>
+
+            <div className="process-actions">
+              <Button size="lg" loading={submitting} onClick={confirmEndSession}>
+                Zakoncz sesje i wroc do menu
+              </Button>
+              <Button variant="secondary" size="lg" disabled={submitting} onClick={closeEndSessionModal}>
+                Zostan w procesie
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <BarcodeScannerModal
         open={scannerModal.open}
