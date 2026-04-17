@@ -6,11 +6,77 @@ import { exportToCSV } from "../../utils/csvExport";
 import { fetchStockRows, replaceStock } from "../../core/api/dataSectionApi";
 import { buildStockImportPreview } from "../../core/upload/dataImports";
 import { useAuth } from "../../core/auth/AppAuth";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
 import { getEntityMapping, getMappedExportColumns } from "../../core/utils/importExportMapping";
 
+const COPY = {
+  pl: {
+    loadError: "Blad pobierania stocku",
+    loading: "Ladowanie danych stock...",
+    importSuccess: "Zaimportowano {{count}} rekordow stocku.",
+    title: "Stock",
+    searchPlaceholder: "Szukaj po lokalizacji, SKU, EAN lub LOT...",
+    previewTitle: "Podglad importu stocku",
+    previewIntro: "Import zaladuje tylko poprawne rekordy, a pozycje z bledami zostana pominiete.",
+    processingMessage: "Czyszcze poprzedni stock i importuje nowy stan magazynu...",
+    importLoading: "Analizuje plik stocku i buduje podglad importu...",
+    columns: {
+      location: "Lokalizacja",
+      sku: "SKU",
+      ean: "EAN",
+      lot: "LOT",
+      expiry: "Data waznosci",
+      quantity: "Ilosc",
+      zone: "Strefa",
+    },
+  },
+  en: {
+    loadError: "Could not load stock",
+    loading: "Loading stock data...",
+    importSuccess: "Imported {{count}} stock rows.",
+    title: "Stock",
+    searchPlaceholder: "Search by location, SKU, EAN or LOT...",
+    previewTitle: "Stock import preview",
+    previewIntro: "Only valid rows will be imported and rows with errors will be skipped.",
+    processingMessage: "Clearing previous stock and importing the new warehouse state...",
+    importLoading: "Analyzing the stock file and building the import preview...",
+    columns: {
+      location: "Location",
+      sku: "SKU",
+      ean: "EAN",
+      lot: "LOT",
+      expiry: "Expiry date",
+      quantity: "Quantity",
+      zone: "Zone",
+    },
+  },
+  de: {
+    loadError: "Bestand konnte nicht geladen werden",
+    loading: "Bestandsdaten werden geladen...",
+    importSuccess: "{{count}} Bestandszeilen wurden importiert.",
+    title: "Bestand",
+    searchPlaceholder: "Nach Lokation, SKU, EAN oder LOT suchen...",
+    previewTitle: "Importvorschau Bestand",
+    previewIntro: "Nur gultige Zeilen werden importiert, fehlerhafte Positionen werden ubersprungen.",
+    processingMessage: "Vorheriger Bestand wird bereinigt und neuer Lagerbestand wird importiert...",
+    importLoading: "Bestandsdatei wird analysiert und Importvorschau wird vorbereitet...",
+    columns: {
+      location: "Lokation",
+      sku: "SKU",
+      ean: "EAN",
+      lot: "LOT",
+      expiry: "Verfallsdatum",
+      quantity: "Menge",
+      zone: "Zone",
+    },
+  },
+};
+
 export default function StockPanel() {
   const { user } = useAuth();
+  const { language } = useAppPreferences();
+  const copy = COPY[language] || COPY.pl;
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("location");
@@ -29,7 +95,7 @@ export default function StockPanel() {
       setRows(await fetchStockRows({ search, sortKey }));
       setError("");
     } catch (err) {
-      setError(err.message || "Blad pobierania stocku");
+      setError(err.message || copy.loadError);
     } finally {
       setLoading(false);
     }
@@ -85,7 +151,7 @@ export default function StockPanel() {
     try {
       setImporting(true);
       await replaceStock(preview.valid);
-      alert(`Zaimportowano ${preview.valid.length} rekordow stocku.`);
+      alert(copy.importSuccess.replace("{{count}}", String(preview.valid.length)));
       setPreview(null);
       loadRows();
     } catch (err) {
@@ -95,7 +161,7 @@ export default function StockPanel() {
     }
   };
 
-  if (loading) return <div>Ladowanie danych stock...</div>;
+  if (loading) return <div>{copy.loading}</div>;
   if (error) return <div>{error}</div>;
 
   const locationsList = [...new Set(rows.map((row) => row.location))].sort();
@@ -104,14 +170,14 @@ export default function StockPanel() {
   return (
     <>
       <DataTablePanel
-        title="Stock"
+        title={copy.title}
         columns={[
-          { key: "location", label: "Lokalizacja" },
-          { key: "sku", label: "SKU" },
-          { key: "ean", label: "EAN" },
-          { key: "lot", label: "LOT" },
-          { key: "expiry_date", label: "Data waznosci" },
-          { key: "quantity", label: "Ilosc" },
+          { key: "location", label: copy.columns.location },
+          { key: "sku", label: copy.columns.sku },
+          { key: "ean", label: copy.columns.ean },
+          { key: "lot", label: copy.columns.lot },
+          { key: "expiry_date", label: copy.columns.expiry },
+          { key: "quantity", label: copy.columns.quantity },
         ]}
         data={filteredRows}
         onSearchChange={setSearch}
@@ -131,38 +197,38 @@ export default function StockPanel() {
           })
         }
         pageSize={25}
-        searchPlaceholder="Szukaj po lokalizacji, SKU, EAN lub LOT..."
+        searchPlaceholder={copy.searchPlaceholder}
       />
 
       {preview && (
         <ImportPreviewModal
-          title="Podglad importu stocku"
-          intro="Import załaduje tylko poprawne rekordy, a pozycje z bledami zostana pominięte."
+          title={copy.previewTitle}
+          intro={copy.previewIntro}
           preview={preview}
           columns={[
-            { key: "location_code", label: "Lokalizacja" },
-            { key: "sku", label: "SKU" },
-            { key: "ean", label: "EAN" },
-            { key: "lot", label: "LOT" },
-            { key: "expiry_date", label: "Data waznosci" },
-            { key: "quantity", label: "Ilosc" },
-            { key: "zone", label: "Strefa" },
+            { key: "location_code", label: copy.columns.location },
+            { key: "sku", label: copy.columns.sku },
+            { key: "ean", label: copy.columns.ean },
+            { key: "lot", label: copy.columns.lot },
+            { key: "expiry_date", label: copy.columns.expiry },
+            { key: "quantity", label: copy.columns.quantity },
+            { key: "zone", label: copy.columns.zone },
           ]}
           getRowKey={(row, index) => `${row.location_code || "loc"}-${row.sku || "sku"}-${index}`}
           getRowValue={(row, key) => row[key] || "-"}
           getInvalidLabel={(row) =>
-            `${row.location_code || "(brak lokalizacji)"} / ${row.sku || "(brak SKU)"}`
+            `${row.location_code || "-"} / ${row.sku || "-"}`
           }
           onConfirm={confirmImport}
           onCancel={() => setPreview(null)}
           processing={importing}
-          processingMessage="Czyszcze poprzedni stock i importuje nowy stan magazynu..."
+          processingMessage={copy.processingMessage}
         />
       )}
       <LoadingOverlay
         open={importPreparing}
         fullscreen
-        message="Analizuje plik stocku i buduje podglad importu..."
+        message={copy.importLoading}
       />
     </>
   );
