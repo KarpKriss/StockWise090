@@ -10,17 +10,46 @@ function normalizeYearMonth(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-async function fetchPriceRows(siteId = readActiveSiteId()) {
-  const { data, error } = await applySiteFilter(
-    supabase.from("prices").select("price, products:product_id(sku)"),
-    siteId
-  );
+async function fetchAllRows(buildQuery, { pageSize = 1000 } = {}) {
+  const rows = [];
+  let from = 0;
 
-  if (error) {
-    throw new Error(error.message || "Blad pobierania cen");
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const batch = data || [];
+    rows.push(...batch);
+
+    if (batch.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
   }
 
-  return (data || []).map((row) => ({
+  return rows;
+}
+
+function chunkArray(items, size = 500) {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+async function fetchPriceRows(siteId = readActiveSiteId()) {
+  const data = await fetchAllRows(() =>
+    applySiteFilter(supabase.from("prices").select("price, products:product_id(sku)"), siteId)
+  );
+
+  return data.map((row) => ({
     sku: row.products?.sku || null,
     price: Number(row.price || 0),
   }));
@@ -28,16 +57,12 @@ async function fetchPriceRows(siteId = readActiveSiteId()) {
 
 async function fetchSiteScopedIssueRows(siteId = readActiveSiteId()) {
   const safeSiteId = normalizeSiteId(siteId);
-  const { data, error } = await supabase
-    .from("empty_location_issues")
-    .select("id, location_id, zone, created_at")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw new Error(error.message || "Blad pobierania problemow");
-  }
-
-  const rows = data || [];
+  const rows = await fetchAllRows(() =>
+    supabase
+      .from("empty_location_issues")
+      .select("id, location_id, zone, created_at")
+      .order("created_at", { ascending: false })
+  );
 
   if (!safeSiteId) {
     return rows;
@@ -49,16 +74,17 @@ async function fetchSiteScopedIssueRows(siteId = readActiveSiteId()) {
     return [];
   }
 
-  const { data: locationsData, error: locationsError } = await applySiteFilter(
-    supabase.from("locations").select("id, zone").in("id", locationIds),
-    safeSiteId
-  );
+  const locationChunks = chunkArray(locationIds, 500);
+  const scopedLocations = [];
 
-  if (locationsError) {
-    throw new Error(locationsError.message || "Blad pobierania lokalizacji problemow");
+  for (const chunk of locationChunks) {
+    const data = await fetchAllRows(() =>
+      applySiteFilter(supabase.from("locations").select("id, zone").in("id", chunk), safeSiteId)
+    );
+    scopedLocations.push(...data);
   }
 
-  const locationsById = new Map((locationsData || []).map((location) => [location.id, location]));
+  const locationsById = new Map(scopedLocations.map((location) => [location.id, location]));
 
   return rows
     .filter((row) => locationsById.has(row.location_id))
@@ -70,70 +96,54 @@ async function fetchSiteScopedIssueRows(siteId = readActiveSiteId()) {
 
 async function fetchDashboardBaseRows(siteId = readActiveSiteId()) {
   const [
-    entriesResult,
-    sessionsResult,
-    locationsResult,
+    entries,
+    sessions,
+    locations,
     issuesRows,
     priceRows,
   ] = await Promise.all([
-    applySiteFilter(
-      supabase
-      .from("entries")
-      .select("id, session_id, user_id, operator, site_id, location, sku, quantity, type, timestamp, created_at")
-      .order("timestamp", { ascending: false }),
-      siteId
+    fetchAllRows(() =>
+      applySiteFilter(
+        supabase
+          .from("entries")
+          .select("id, session_id, user_id, operator, site_id, location, sku, quantity, type, timestamp, created_at")
+          .order("timestamp", { ascending: false }),
+        siteId
+      )
     ),
-    applySiteFilter(
-      supabase
-      .from("sessions")
-      .select("id, user_id, operator, site_id, status, started_at, ended_at, last_activity, created_at")
-      .order("started_at", { ascending: false }),
-      siteId
+    fetchAllRows(() =>
+      applySiteFilter(
+        supabase
+          .from("sessions")
+          .select("id, user_id, operator, site_id, status, started_at, ended_at, last_activity, created_at")
+          .order("started_at", { ascending: false }),
+        siteId
+      )
     ),
-    applySiteFilter(supabase.from("locations").select("code, zone, status"), siteId),
+    fetchAllRows(() => applySiteFilter(supabase.from("locations").select("code, zone, status"), siteId)),
     fetchSiteScopedIssueRows(siteId),
     fetchPriceRows(siteId),
   ]);
 
-  if (entriesResult.error) {
-    throw new Error(entriesResult.error.message || "Blad pobierania entries");
-  }
-
-  if (sessionsResult.error) {
-    throw new Error(sessionsResult.error.message || "Blad pobierania sesji");
-  }
-
-  if (locationsResult.error) {
-    throw new Error(locationsResult.error.message || "Blad pobierania lokalizacji");
-  }
-
   return {
-    entries: entriesResult.data || [],
-    sessions: sessionsResult.data || [],
-    locations: locationsResult.data || [],
+    entries: entries || [],
+    sessions: sessions || [],
+    locations: locations || [],
     issues: issuesRows || [],
     priceRows,
   };
 }
 
 export async function fetchDashboardFilters(siteId = readActiveSiteId()) {
-  const [entriesResult, sessionsResult, issuesRows] = await Promise.all([
-    applySiteFilter(supabase.from("entries").select("timestamp, created_at"), siteId),
-    applySiteFilter(supabase.from("sessions").select("started_at, created_at"), siteId),
+  const [entries, sessions, issuesRows] = await Promise.all([
+    fetchAllRows(() => applySiteFilter(supabase.from("entries").select("timestamp, created_at"), siteId)),
+    fetchAllRows(() => applySiteFilter(supabase.from("sessions").select("started_at, created_at"), siteId)),
     fetchSiteScopedIssueRows(siteId),
   ]);
 
-  if (entriesResult.error || sessionsResult.error) {
-    throw new Error(
-      entriesResult.error?.message ||
-        sessionsResult.error?.message ||
-        "Blad pobierania filtrow dashboardu"
-    );
-  }
-
   const baseRows = {
-    entries: entriesResult.data || [],
-    sessions: sessionsResult.data || [],
+    entries: entries || [],
+    sessions: sessions || [],
     issues: issuesRows || [],
   };
 

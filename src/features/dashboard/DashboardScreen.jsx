@@ -173,7 +173,7 @@ export default function DashboardScreen() {
     return () => {
       cancelled = true;
     };
-  }, [year, month, refreshTick]);
+  }, [year, month, refreshTick, t]);
 
   const summary = dashboard.summary || {};
   const enhancedZoneStats = useMemo(
@@ -184,6 +184,7 @@ export default function DashboardScreen() {
       })),
     [dashboard.zoneStats]
   );
+
   const selectedZoneStats = useMemo(() => {
     if (selectedZone) {
       return enhancedZoneStats.find((zone) => zone.zone === selectedZone) || enhancedZoneStats[0] || null;
@@ -191,31 +192,14 @@ export default function DashboardScreen() {
 
     return (
       [...enhancedZoneStats].sort((left, right) => {
-        if (right.health.score !== left.health.score) {
-          return right.health.score - left.health.score;
+        if (left.health.score !== right.health.score) {
+          return left.health.score - right.health.score;
         }
 
         return right.total_locations - left.total_locations;
       })[0] || null
     );
   }, [enhancedZoneStats, selectedZone]);
-  const topRiskZones = useMemo(
-    () =>
-      [...enhancedZoneStats]
-        .sort((left, right) => {
-          if (left.health.score !== right.health.score) {
-            return left.health.score - right.health.score;
-          }
-
-          if (right.problems_count !== left.problems_count) {
-            return right.problems_count - left.problems_count;
-          }
-
-          return right.total_locations - left.total_locations;
-        })
-        .slice(0, 3),
-    [enhancedZoneStats]
-  );
 
   useEffect(() => {
     if (!enhancedZoneStats.length) {
@@ -281,9 +265,7 @@ export default function DashboardScreen() {
             <BarChart3 size={26} />
             {t("dashboard.title")}
           </h1>
-          <p className="dashboard-subtitle">
-            {t("dashboard.subtitle")}
-          </p>
+          <p className="dashboard-subtitle">{t("dashboard.subtitle")}</p>
         </div>
 
         <div className="dashboard-actions">
@@ -297,11 +279,7 @@ export default function DashboardScreen() {
             <RefreshCw size={16} />
             {t("dashboard.refresh")}
           </button>
-          <button
-            className="dashboard-primary-button"
-            disabled={exporting}
-            onClick={handleExport}
-          >
+          <button className="dashboard-primary-button" disabled={exporting} onClick={handleExport}>
             <Download size={16} />
             {exporting ? t("dashboard.exporting") : t("dashboard.export")}
           </button>
@@ -332,7 +310,8 @@ export default function DashboardScreen() {
         </label>
 
         <div className="dashboard-source">
-          {t("dashboard.source")}: <strong>{dashboard.source === "rpc" ? t("dashboard.sourceRpc") : t("dashboard.sourceFallback")}</strong>
+          {t("dashboard.source")}: {" "}
+          <strong>{dashboard.source === "rpc" ? t("dashboard.sourceRpc") : t("dashboard.sourceFallback")}</strong>
         </div>
       </div>
 
@@ -391,64 +370,33 @@ export default function DashboardScreen() {
 
             {enhancedZoneStats.length ? (
               <div className="dashboard-zone-experience">
-                <div className="dashboard-zone-topbar">
-                  <div className="dashboard-zone-legend">
-                    <div>
-                      <h3>{t("dashboard.zoneLegendTitle")}</h3>
-                      <p>{t("dashboard.zoneLegendSubtitle")}</p>
-                    </div>
-                    <div className="dashboard-zone-legend__items">
-                      <div className="dashboard-zone-legend__item">
-                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--clear" />
-                        <span>{t("dashboard.zoneLegendClear")}</span>
-                      </div>
-                      <div className="dashboard-zone-legend__item">
-                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--stable" />
-                        <span>{t("dashboard.zoneLegendStable")}</span>
-                      </div>
-                      <div className="dashboard-zone-legend__item">
-                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--watch" />
-                        <span>{t("dashboard.zoneLegendWatch")}</span>
-                      </div>
-                      <div className="dashboard-zone-legend__item">
-                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--critical" />
-                        <span>{t("dashboard.zoneLegendCritical")}</span>
-                      </div>
-                    </div>
+                <div className="dashboard-zone-legend">
+                  <div>
+                    <h3>{t("dashboard.zoneLegendTitle")}</h3>
+                    <p>{t("dashboard.zoneLegendSubtitle")}</p>
                   </div>
-
-                  <div className="dashboard-zone-alert-strip">
-                    <div className="dashboard-zone-alert-strip__header">
-                      <h3>{t("dashboard.zoneTopRiskTitle")}</h3>
-                      <p>{t("dashboard.zoneTopRiskSubtitle")}</p>
+                  <div className="dashboard-zone-legend__items">
+                    <div className="dashboard-zone-legend__item">
+                      <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--clear" />
+                      <span>{t("dashboard.zoneLegendClear")}</span>
                     </div>
-                    <div className="dashboard-zone-alert-strip__items">
-                      {topRiskZones.map((zone, index) => (
-                        <button
-                          key={zone.zone}
-                          type="button"
-                          className={`dashboard-zone-alert dashboard-zone-alert--${zone.health.tone}`}
-                          onClick={() => setSelectedZone(zone.zone)}
-                        >
-                          <span className="dashboard-zone-alert__rank">#{index + 1}</span>
-                          <div className="dashboard-zone-alert__main">
-                            <strong>{zone.zone}</strong>
-                            <span>{t(zone.health.labelKey)} · {zone.health.score}/100</span>
-                          </div>
-                          <div className="dashboard-zone-alert__meta">
-                            {t("dashboard.zoneTopRiskImpact", {
-                              locations: formatNumber(zone.total_locations),
-                              issues: formatNumber(zone.problems_count),
-                            })}
-                          </div>
-                        </button>
-                      ))}
+                    <div className="dashboard-zone-legend__item">
+                      <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--stable" />
+                      <span>{t("dashboard.zoneLegendStable")}</span>
+                    </div>
+                    <div className="dashboard-zone-legend__item">
+                      <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--watch" />
+                      <span>{t("dashboard.zoneLegendWatch")}</span>
+                    </div>
+                    <div className="dashboard-zone-legend__item">
+                      <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--critical" />
+                      <span>{t("dashboard.zoneLegendCritical")}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="dashboard-zone-heatmap">
-                  {enhancedZoneStats.map((zone) => {
+                  {enhancedZoneStats.map((zone, index) => {
                     const isActive = zone.zone === selectedZoneStats?.zone;
                     const flexGrow = Math.max(zone.total_locations || 1, 1);
 
@@ -457,7 +405,7 @@ export default function DashboardScreen() {
                         key={zone.zone}
                         type="button"
                         className={`dashboard-zone-tile dashboard-zone-tile--${zone.health.tone} ${isActive ? "is-active" : ""}`}
-                        style={{ flexGrow, animationDelay: `${Math.min(enhancedZoneStats.indexOf(zone) * 70, 700)}ms` }}
+                        style={{ flexGrow, animationDelay: `${Math.min(index * 70, 700)}ms` }}
                         onClick={() => setSelectedZone(zone.zone)}
                       >
                         <div className="dashboard-zone-tile__header">
@@ -470,7 +418,9 @@ export default function DashboardScreen() {
                         </div>
                         <div className="dashboard-zone-tile__footer">
                           <span>{t(zone.health.labelKey)}</span>
-                          <span>{formatNumber(zone.problems_count)} {t("dashboard.zoneIssueCount")}</span>
+                          <span>
+                            {formatNumber(zone.problems_count)} {t("dashboard.zoneIssueCount")}
+                          </span>
                         </div>
                       </button>
                     );
