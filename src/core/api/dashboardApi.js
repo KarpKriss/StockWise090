@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
+import { applySiteFilter, normalizeSiteId, readActiveSiteId } from "../auth/siteScope";
 import {
   buildDashboardData,
   collectDashboardYears,
@@ -26,12 +26,54 @@ async function fetchPriceRows(siteId = readActiveSiteId()) {
   }));
 }
 
+async function fetchSiteScopedIssueRows(siteId = readActiveSiteId()) {
+  const safeSiteId = normalizeSiteId(siteId);
+  const { data, error } = await supabase
+    .from("empty_location_issues")
+    .select("id, location_id, zone, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message || "Blad pobierania problemow");
+  }
+
+  const rows = data || [];
+
+  if (!safeSiteId) {
+    return rows;
+  }
+
+  const locationIds = [...new Set(rows.map((row) => row.location_id).filter(Boolean))];
+
+  if (!locationIds.length) {
+    return [];
+  }
+
+  const { data: locationsData, error: locationsError } = await applySiteFilter(
+    supabase.from("locations").select("id, zone").in("id", locationIds),
+    safeSiteId
+  );
+
+  if (locationsError) {
+    throw new Error(locationsError.message || "Blad pobierania lokalizacji problemow");
+  }
+
+  const locationsById = new Map((locationsData || []).map((location) => [location.id, location]));
+
+  return rows
+    .filter((row) => locationsById.has(row.location_id))
+    .map((row) => ({
+      ...row,
+      zone: row.zone || locationsById.get(row.location_id)?.zone || null,
+    }));
+}
+
 async function fetchDashboardBaseRows(siteId = readActiveSiteId()) {
   const [
     entriesResult,
     sessionsResult,
     locationsResult,
-    issuesResult,
+    issuesRows,
     priceRows,
   ] = await Promise.all([
     applySiteFilter(
@@ -49,13 +91,7 @@ async function fetchDashboardBaseRows(siteId = readActiveSiteId()) {
       siteId
     ),
     applySiteFilter(supabase.from("locations").select("code, zone"), siteId),
-    applySiteFilter(
-      supabase
-      .from("empty_location_issues")
-      .select("id, zone, created_at")
-      .order("created_at", { ascending: false }),
-      siteId
-    ),
+    fetchSiteScopedIssueRows(siteId),
     fetchPriceRows(siteId),
   ]);
 
@@ -71,31 +107,26 @@ async function fetchDashboardBaseRows(siteId = readActiveSiteId()) {
     throw new Error(locationsResult.error.message || "Blad pobierania lokalizacji");
   }
 
-  if (issuesResult.error) {
-    throw new Error(issuesResult.error.message || "Blad pobierania problemow");
-  }
-
   return {
     entries: entriesResult.data || [],
     sessions: sessionsResult.data || [],
     locations: locationsResult.data || [],
-    issues: issuesResult.data || [],
+    issues: issuesRows || [],
     priceRows,
   };
 }
 
 export async function fetchDashboardFilters(siteId = readActiveSiteId()) {
-  const [entriesResult, sessionsResult, issuesResult] = await Promise.all([
+  const [entriesResult, sessionsResult, issuesRows] = await Promise.all([
     applySiteFilter(supabase.from("entries").select("timestamp, created_at"), siteId),
     applySiteFilter(supabase.from("sessions").select("started_at, created_at"), siteId),
-    applySiteFilter(supabase.from("empty_location_issues").select("created_at"), siteId),
+    fetchSiteScopedIssueRows(siteId),
   ]);
 
-  if (entriesResult.error || sessionsResult.error || issuesResult.error) {
+  if (entriesResult.error || sessionsResult.error) {
     throw new Error(
       entriesResult.error?.message ||
         sessionsResult.error?.message ||
-        issuesResult.error?.message ||
         "Blad pobierania filtrow dashboardu"
     );
   }
@@ -103,7 +134,7 @@ export async function fetchDashboardFilters(siteId = readActiveSiteId()) {
   const baseRows = {
     entries: entriesResult.data || [],
     sessions: sessionsResult.data || [],
-    issues: issuesResult.data || [],
+    issues: issuesRows || [],
   };
 
   return {

@@ -16,6 +16,52 @@ function normalizeProblemRow(row) {
   };
 }
 
+async function fetchSiteScopedProblemRows(siteId) {
+  const safeSiteId = normalizeSiteId(siteId);
+  const { data, error } = await supabase
+    .from("empty_location_issues")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("FETCH PROBLEMS ERROR:", error);
+    throw new Error(error.message || "Blad pobierania problemow");
+  }
+
+  const normalizedRows = (data || []).map(normalizeProblemRow);
+  const locationIds = [...new Set(normalizedRows.map((row) => row.location_id).filter(Boolean))];
+
+  if (!safeSiteId || locationIds.length === 0) {
+    return normalizedRows;
+  }
+
+  const { data: locationsData, error: locationsError } = await applySiteFilter(
+    supabase
+      .from("locations")
+      .select("id, code, zone")
+      .in("id", locationIds),
+    safeSiteId
+  );
+
+  if (locationsError) {
+    console.warn("FETCH PROBLEM LOCATIONS LOOKUP ERROR:", locationsError);
+    return [];
+  }
+
+  const locationsById = new Map((locationsData || []).map((location) => [location.id, location]));
+
+  return normalizedRows
+    .filter((row) => locationsById.has(row.location_id))
+    .map((row) => {
+      const matchedLocation = locationsById.get(row.location_id);
+      return {
+        ...row,
+        location_code: row.location_code || matchedLocation?.code || null,
+        zone: row.zone || matchedLocation?.zone || null,
+      };
+    });
+}
+
 export async function fetchProblemRows(siteId = readActiveSiteId()) {
   const safeSiteId = normalizeSiteId(siteId);
   let rpcRows = null;
@@ -34,49 +80,7 @@ export async function fetchProblemRows(siteId = readActiveSiteId()) {
     return sortByNewest(rpcRows.map(normalizeProblemRow));
   }
 
-  const { data, error } = await applySiteFilter(
-    supabase
-      .from("empty_location_issues")
-      .select("*")
-      .order("created_at", { ascending: false }),
-    safeSiteId
-  );
-
-  if (error) {
-    console.error("FETCH PROBLEMS ERROR:", error);
-    throw new Error(error.message || "Blad pobierania problemow");
-  }
-
-  const normalizedRows = (data || []).map(normalizeProblemRow);
-  const locationIds = [...new Set(normalizedRows.map((row) => row.location_id).filter(Boolean))];
-
-  if (locationIds.length === 0) {
-    return normalizedRows;
-  }
-
-  const { data: locationsData, error: locationsError } = await applySiteFilter(
-    supabase
-      .from("locations")
-      .select("id, code, zone")
-      .in("id", locationIds),
-    safeSiteId
-  );
-
-  if (locationsError) {
-    console.warn("FETCH PROBLEM LOCATIONS LOOKUP ERROR:", locationsError);
-    return normalizedRows;
-  }
-
-  const locationsById = new Map((locationsData || []).map((location) => [location.id, location]));
-
-  return normalizedRows.map((row) => {
-    const matchedLocation = locationsById.get(row.location_id);
-    return {
-      ...row,
-      location_code: row.location_code || matchedLocation?.code || null,
-      zone: row.zone || matchedLocation?.zone || null,
-    };
-  });
+  return sortByNewest(await fetchSiteScopedProblemRows(safeSiteId));
 }
 
 export async function resolveProblemCase({ issueId, locationId, releaseNote }) {
