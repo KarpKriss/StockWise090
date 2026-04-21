@@ -233,8 +233,18 @@ export async function deleteWarehouseLocation(id, siteId = readActiveSiteId()) {
 }
 
 export async function updateWarehouseLocationStatus(id, status, siteId = readActiveSiteId()) {
+  const nextPayload =
+    String(status || "").toLowerCase() === "pending"
+      ? {
+          status: "pending",
+          locked_by: null,
+          locked_at: null,
+          session_id: null,
+        }
+      : { status };
+
   const { error } = await applySiteFilter(
-    supabase.from("locations").update({ status }).eq("id", id),
+    supabase.from("locations").update(nextPayload).eq("id", id),
     siteId
   );
 
@@ -248,8 +258,18 @@ export async function updateWarehouseLocationStatuses(ids, status, siteId = read
   const safeIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
   if (!safeIds.length) return;
 
+  const nextPayload =
+    String(status || "").toLowerCase() === "pending"
+      ? {
+          status: "pending",
+          locked_by: null,
+          locked_at: null,
+          session_id: null,
+        }
+      : { status };
+
   const { error } = await applySiteFilter(
-    supabase.from("locations").update({ status }).in("id", safeIds),
+    supabase.from("locations").update(nextPayload).in("id", safeIds),
     siteId
   );
 
@@ -263,8 +283,18 @@ export async function updateWarehouseLocationStatusesByZone(zone, status, siteId
   const normalizedZone = String(zone || "").trim();
   if (!normalizedZone) return;
 
+  const nextPayload =
+    String(status || "").toLowerCase() === "pending"
+      ? {
+          status: "pending",
+          locked_by: null,
+          locked_at: null,
+          session_id: null,
+        }
+      : { status };
+
   const { error } = await applySiteFilter(
-    supabase.from("locations").update({ status }).eq("zone", normalizedZone),
+    supabase.from("locations").update(nextPayload).eq("zone", normalizedZone),
     siteId
   );
 
@@ -275,8 +305,18 @@ export async function updateWarehouseLocationStatusesByZone(zone, status, siteId
 }
 
 export async function updateAllWarehouseLocationStatuses(status, siteId = readActiveSiteId()) {
+  const nextPayload =
+    String(status || "").toLowerCase() === "pending"
+      ? {
+          status: "pending",
+          locked_by: null,
+          locked_at: null,
+          session_id: null,
+        }
+      : { status };
+
   const { error } = await applySiteFilter(
-    supabase.from("locations").update({ status }),
+    supabase.from("locations").update(nextPayload),
     siteId
   ).not("id", "is", null);
 
