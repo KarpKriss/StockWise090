@@ -43,7 +43,7 @@ function QuantityStep({ value, onChange, error }) {
         </button>
 
         <button className="key-btn control" onClick={remove} aria-label={copy.deleteLabel}>
-          <-
+          {"<-"}
         </button>
       </div>
 
