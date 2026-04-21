@@ -4,6 +4,7 @@
   CheckCircle2,
   Database,
   Download,
+  Lock,
   OctagonAlert,
   PauseCircle,
   RefreshCw,
@@ -13,8 +14,9 @@
   Waypoints,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Button from "../../components/ui/Button";
 import PageShell from "../../components/layout/PageShell";
-import { fetchSystemStatus } from "../../core/api/systemStatusApi";
+import { fetchSystemStatus, fetchSystemStatusDetails } from "../../core/api/systemStatusApi";
 import { useAppPreferences } from "../../core/preferences/AppPreferences";
 
 function getSeverityMeta(severity, copy) {
@@ -60,16 +62,22 @@ function formatMetric(value, locale) {
   return new Intl.NumberFormat(locale).format(number);
 }
 
-function HealthMetricCard({ icon, label, value, hint, tone = "neutral" }) {
+function HealthMetricCard({ icon, label, value, hint, tone = "neutral", onClick = null }) {
+  const Tag = onClick ? "button" : "div";
+
   return (
-    <div className={`system-status-metric system-status-metric--${tone}`}>
+    <Tag
+      type={onClick ? "button" : undefined}
+      className={`system-status-metric system-status-metric--${tone}${onClick ? " system-status-metric--interactive" : ""}`}
+      onClick={onClick || undefined}
+    >
       <div className="system-status-metric__icon">{icon}</div>
       <div>
         <div className="system-status-metric__label">{label}</div>
         <div className="system-status-metric__value">{value}</div>
         {hint ? <div className="system-status-metric__hint">{hint}</div> : null}
       </div>
-    </div>
+    </Tag>
   );
 }
 
@@ -105,12 +113,24 @@ function AlertRow({ item, copy }) {
   );
 }
 
+function DetailStat({ label, value }) {
+  return (
+    <div className="system-status-detail-stat">
+      <div className="system-status-detail-stat__label">{label}</div>
+      <div className="system-status-detail-stat__value">{value ?? "-"}</div>
+    </div>
+  );
+}
+
 export default function SystemStatusModern() {
   const { language, locale } = useAppPreferences();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+  const [detailModal, setDetailModal] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const copy = {
     pl: {
@@ -186,6 +206,26 @@ export default function SystemStatusModern() {
       user: "Uzytkownik",
       noErrorLogs: "Brak zarejestrowanych bledow aplikacyjnych.",
       noStatusData: "Brak danych statusowych do wyswietlenia.",
+      detailsTitle: "Szczegoly wskaznika",
+      detailsHint: "Kliknij kafel, aby zobaczyc szczegoly operacyjne.",
+      detailsEmpty: "Brak szczegolowych rekordow dla tego wskaznika.",
+      detailsLoadError: "Nie udalo sie pobrac szczegolow wskaznika.",
+      close: "Zamknij",
+      location: "Lokalizacja",
+      zone: "Strefa",
+      status: "Status",
+      operator: "Operator",
+      operatorEmail: "Email operatora",
+      openedFor: "Otwarte od",
+      lastSignal: "Ostatnia aktywnosc",
+      session: "Sesja",
+      problem: "Problem",
+      note: "Notatka",
+      sourceProcess: "Proces",
+      quantity: "Ilosc",
+      type: "Typ",
+      lockUntil: "Blokada do",
+      sessionsCount: "Liczba sesji",
     },
     en: {
       severityCritical: "Critical",
@@ -260,6 +300,26 @@ export default function SystemStatusModern() {
       user: "User",
       noErrorLogs: "No application errors recorded.",
       noStatusData: "No status data to display.",
+      detailsTitle: "Metric details",
+      detailsHint: "Click a card to open the operational details.",
+      detailsEmpty: "No detailed records for this metric.",
+      detailsLoadError: "Could not load metric details.",
+      close: "Close",
+      location: "Location",
+      zone: "Zone",
+      status: "Status",
+      operator: "Operator",
+      operatorEmail: "Operator email",
+      openedFor: "Open for",
+      lastSignal: "Last activity",
+      session: "Session",
+      problem: "Problem",
+      note: "Note",
+      sourceProcess: "Process",
+      quantity: "Quantity",
+      type: "Type",
+      lockUntil: "Locked until",
+      sessionsCount: "Sessions count",
     },
     de: {
       severityCritical: "Kritisch",
@@ -334,6 +394,26 @@ export default function SystemStatusModern() {
       user: "Benutzer",
       noErrorLogs: "Keine Anwendungsfehler protokolliert.",
       noStatusData: "Keine Statusdaten zur Anzeige vorhanden.",
+      detailsTitle: "Kennzahl-Details",
+      detailsHint: "Klicke auf eine Kachel, um die operativen Details zu sehen.",
+      detailsEmpty: "Keine Detaildatensatze fuer diese Kennzahl vorhanden.",
+      detailsLoadError: "Kennzahl-Details konnten nicht geladen werden.",
+      close: "Schliessen",
+      location: "Lokation",
+      zone: "Zone",
+      status: "Status",
+      operator: "Operator",
+      operatorEmail: "Operator-E-Mail",
+      openedFor: "Geoffnet seit",
+      lastSignal: "Letzte Aktivitat",
+      session: "Sitzung",
+      problem: "Problem",
+      note: "Notiz",
+      sourceProcess: "Prozess",
+      quantity: "Menge",
+      type: "Typ",
+      lockUntil: "Gesperrt bis",
+      sessionsCount: "Sitzungsanzahl",
     },
   }[language];
 
@@ -389,6 +469,167 @@ export default function SystemStatusModern() {
   }, [alerts]);
 
   const overallMeta = getSeverityMeta(summary?.overall_status, copy);
+
+  const detailMetricTitles = {
+    active_users: copy.activeUsers,
+    active_sessions: copy.activeSessions,
+    paused_sessions: copy.pausedSessions,
+    locations_in_progress: copy.locationsInProgress,
+    open_problems: copy.openProblems,
+    entries_last_hour: copy.entriesLastHour,
+    locked_accounts: copy.lockedAccounts,
+    stale_sessions: copy.staleSessions,
+    stale_locations: copy.staleLocations,
+  };
+
+  async function openDetail(metricKey) {
+    try {
+      setDetailLoading(true);
+      setDetailError("");
+      const details = await fetchSystemStatusDetails(metricKey);
+      setDetailModal({
+        metricKey,
+        title: detailMetricTitles[metricKey] || copy.detailsTitle,
+        rows: details?.rows || [],
+      });
+    } catch (err) {
+      setDetailError(err.message || copy.detailsLoadError);
+      setDetailModal({
+        metricKey,
+        title: detailMetricTitles[metricKey] || copy.detailsTitle,
+        rows: [],
+      });
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeDetailModal() {
+    if (detailLoading) return;
+    setDetailModal(null);
+    setDetailError("");
+  }
+
+  function renderDetailCard(row) {
+    switch (detailModal?.metricKey) {
+      case "locations_in_progress":
+      case "stale_locations":
+        return (
+          <div key={row.id} className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>{row.location_code}</h3>
+                <p>{copy.zone}: {row.zone || "-"}</p>
+              </div>
+              <span className="system-alert__pill system-alert__pill--warning">{row.status || "-"}</span>
+            </div>
+            <div className="system-status-grid">
+              <DetailStat label={copy.operator} value={row.operator_name} />
+              <DetailStat label={copy.operatorEmail} value={row.operator_email} />
+              <DetailStat label={copy.session} value={row.session_status} />
+              <DetailStat label={copy.openedFor} value={row.minutes_open != null ? `${row.minutes_open} min` : "-"} />
+              <DetailStat label={copy.lastSignal} value={row.minutes_since_signal != null ? `${row.minutes_since_signal} min` : "-"} />
+            </div>
+          </div>
+        );
+      case "active_sessions":
+      case "paused_sessions":
+      case "stale_sessions":
+        return (
+          <div key={row.id} className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>{row.operator_name}</h3>
+                <p>{row.operator_email}</p>
+              </div>
+              <span className="system-alert__pill system-alert__pill--warning">{row.status || "-"}</span>
+            </div>
+            <div className="system-status-grid">
+              <DetailStat label={copy.openedFor} value={row.minutes_open != null ? `${row.minutes_open} min` : "-"} />
+              <DetailStat label={copy.lastSignal} value={row.minutes_since_signal != null ? `${row.minutes_since_signal} min` : "-"} />
+              <DetailStat label={copy.time} value={formatDateTime(row.started_at, locale)} />
+            </div>
+          </div>
+        );
+      case "open_problems":
+        return (
+          <div key={row.id} className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>{row.location_code}</h3>
+                <p>{copy.zone}: {row.zone || "-"}</p>
+              </div>
+              <span className="system-alert__pill system-alert__pill--critical">{row.status || "-"}</span>
+            </div>
+            <div className="system-status-grid">
+              <DetailStat label={copy.problem} value={row.issue_type} />
+              <DetailStat label={copy.sourceProcess} value={row.source_process} />
+              <DetailStat label={copy.operatorEmail} value={row.operator_email} />
+              <DetailStat label={copy.time} value={formatDateTime(row.created_at, locale)} />
+            </div>
+            {row.note ? <div className="system-alert__recommendation">{row.note}</div> : null}
+          </div>
+        );
+      case "entries_last_hour":
+        return (
+          <div key={row.id} className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>{row.location}</h3>
+                <p>{row.operator_name} • {row.operator_email}</p>
+              </div>
+              <span className="system-alert__pill system-alert__pill--healthy">{row.type || "-"}</span>
+            </div>
+            <div className="system-status-grid">
+              <DetailStat label="SKU" value={row.sku} />
+              <DetailStat label="EAN" value={row.ean} />
+              <DetailStat label="LOT" value={row.lot} />
+              <DetailStat label={copy.quantity} value={row.quantity} />
+              <DetailStat label={copy.time} value={formatDateTime(row.timestamp, locale)} />
+              <DetailStat label={copy.session} value={row.session_id} />
+            </div>
+          </div>
+        );
+      case "active_users":
+        return (
+          <div key={row.id} className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>{row.operator_name}</h3>
+                <p>{row.operator_email}</p>
+              </div>
+            </div>
+            <div className="system-status-grid">
+              <DetailStat label={copy.sessionsCount} value={row.active_sessions} />
+              <DetailStat label={copy.lastSignal} value={formatDateTime(row.last_activity, locale)} />
+            </div>
+          </div>
+        );
+      case "locked_accounts":
+        return (
+          <div key={row.user_id} className="app-card">
+            <div className="system-status-section-header">
+              <div>
+                <h3>{row.name || row.email || "-"}</h3>
+                <p>{row.email || "-"}</p>
+              </div>
+              <span className="system-alert__pill system-alert__pill--critical">{row.role || "-"}</span>
+            </div>
+            <div className="system-status-grid">
+              <DetailStat label={copy.lockUntil} value={formatDateTime(row.lock_until, locale)} />
+              <DetailStat label="Failed attempts" value={row.failed_attempts ?? "-"} />
+              <DetailStat label="Login attempts" value={row.login_attempts ?? "-"} />
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div key={row.id || JSON.stringify(row)} className="app-card">
+            <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{JSON.stringify(row, null, 2)}</pre>
+          </div>
+        );
+    }
+  }
 
   return (
     <PageShell
@@ -474,6 +715,7 @@ export default function SystemStatusModern() {
               label={copy.activeUsers}
               value={formatMetric(summary.active_users, locale)}
               hint={copy.activeUsersHint}
+              onClick={() => openDetail("active_users")}
             />
             <HealthMetricCard
               icon={<ActivitySquare size={20} />}
@@ -481,6 +723,7 @@ export default function SystemStatusModern() {
               value={formatMetric(summary.active_sessions, locale)}
               hint={copy.activeSessionsHint}
               tone={Number(summary.stale_sessions || 0) > 0 ? "warning" : "neutral"}
+              onClick={() => openDetail("active_sessions")}
             />
             <HealthMetricCard
               icon={<PauseCircle size={20} />}
@@ -488,6 +731,7 @@ export default function SystemStatusModern() {
               value={formatMetric(summary.paused_sessions, locale)}
               hint={copy.pausedSessionsHint}
               tone={Number(summary.paused_sessions || 0) >= 5 ? "warning" : "neutral"}
+              onClick={() => openDetail("paused_sessions")}
             />
             <HealthMetricCard
               icon={<Waypoints size={20} />}
@@ -495,6 +739,7 @@ export default function SystemStatusModern() {
               value={formatMetric(summary.in_progress_locations, locale)}
               hint={copy.locationsInProgressHint}
               tone={Number(summary.stale_locations || 0) > 0 ? "warning" : "neutral"}
+              onClick={() => openDetail("locations_in_progress")}
             />
             <HealthMetricCard
               icon={<ShieldAlert size={20} />}
@@ -505,9 +750,10 @@ export default function SystemStatusModern() {
                 Number(summary.unresolved_issues || 0) >= 5
                   ? "critical"
                   : Number(summary.unresolved_issues || 0) > 0
-                    ? "warning"
+                  ? "warning"
                     : "healthy"
               }
+              onClick={() => openDetail("open_problems")}
             />
             <HealthMetricCard
               icon={<ActivitySquare size={20} />}
@@ -519,13 +765,15 @@ export default function SystemStatusModern() {
                   ? "warning"
                   : "neutral"
               }
+              onClick={() => openDetail("entries_last_hour")}
             />
             <HealthMetricCard
-              icon={<Users size={20} />}
+              icon={<Lock size={20} />}
               label={copy.lockedAccounts}
               value={formatMetric(summary.locked_accounts, locale)}
               hint={copy.lockedAccountsHint}
               tone={Number(summary.locked_accounts || 0) > 0 ? "warning" : "healthy"}
+              onClick={() => openDetail("locked_accounts")}
             />
             <HealthMetricCard
               icon={<ShieldAlert size={20} />}
@@ -540,6 +788,7 @@ export default function SystemStatusModern() {
               value={formatMetric(summary.stale_sessions, locale)}
               hint={copy.staleSessionsHint}
               tone={Number(summary.stale_sessions || 0) >= 3 ? "critical" : Number(summary.stale_sessions || 0) > 0 ? "warning" : "healthy"}
+              onClick={() => openDetail("stale_sessions")}
             />
             <HealthMetricCard
               icon={<OctagonAlert size={20} />}
@@ -547,6 +796,7 @@ export default function SystemStatusModern() {
               value={formatMetric(summary.stale_locations, locale)}
               hint={copy.staleLocationsHint}
               tone={Number(summary.stale_locations || 0) > 0 ? "critical" : "healthy"}
+              onClick={() => openDetail("stale_locations")}
             />
           </div>
 
@@ -717,6 +967,36 @@ export default function SystemStatusModern() {
       {!loading && !error && !summary ? (
         <div className="app-card">
           <div className="app-empty-state">{copy.noStatusData}</div>
+        </div>
+      ) : null}
+
+      {detailModal ? (
+        <div className="history-modal-overlay" onClick={closeDetailModal}>
+          <div className="history-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="history-modal__header">
+              <div>
+                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
+                  {detailModal.title}
+                </h2>
+                <p className="process-panel__subtitle">{copy.detailsHint}</p>
+              </div>
+              <Button variant="secondary" onClick={closeDetailModal} disabled={detailLoading}>
+                {copy.close}
+              </Button>
+            </div>
+
+            {detailError ? <div className="input-error-text">{detailError}</div> : null}
+
+            {detailLoading ? (
+              <div className="app-card">{copy.loading}</div>
+            ) : detailModal.rows.length ? (
+              <div className="system-alert-list">
+                {detailModal.rows.map((row) => renderDetailCard(row))}
+              </div>
+            ) : (
+              <div className="app-empty-state">{copy.detailsEmpty}</div>
+            )}
+          </div>
         </div>
       ) : null}
     </PageShell>
