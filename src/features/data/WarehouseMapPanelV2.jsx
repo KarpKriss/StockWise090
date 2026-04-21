@@ -11,6 +11,7 @@ import {
   fetchLocationsPage,
   replaceLocations,
   resetWarehouseMap,
+  updateWarehouseLocationStatus,
 } from "../../core/api/dataSectionApi";
 import { buildLocationsImportPreview } from "../../core/upload/dataImports";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -38,6 +39,8 @@ const COPY = {
     resetMessage: "Czy na pewno chcesz zresetowac cala mape magazynu? Wszystkie lokalizacje zostana usuniete i konieczne bedzie ponowne wgranie mapy od zera.",
     resetConfirm: "Tak, resetuj mape",
     deleteSuccess: "Usunieto lokalizacje {{code}}.",
+    resetStatusAction: "Zresetuj status",
+    resetStatusSuccess: "Status lokalizacji {{code}} zmieniono na pending.",
     resetSuccess: "Mapa magazynu zostala zresetowana. Aby pracowac dalej, wgraj nowy plik mapy.",
     actionError: "Nie udalo sie wykonac operacji na mapie magazynu",
     close: "Zamknij",
@@ -45,6 +48,7 @@ const COPY = {
     irreversible: "Ta operacja jest nieodwracalna. Przed potwierdzeniem upewnij sie, ze chcesz trwale usunac wskazane dane z mapy magazynu.",
     resetLoading: "Resetuje cala mape magazynu i czyszcze lokalizacje...",
     deleteLoading: "Usuwam wskazana lokalizacje z mapy magazynu...",
+    statusResetLoading: "Przywracam status lokalizacji do pending...",
     importLoading: "Analizuje plik mapy magazynu i przygotowuje podglad importu...",
     processingMessage: "Resetuje mape i importuje nowy zestaw lokalizacji...",
     columns: { code: "Lokalizacja", zone: "Strefa", status: "Status" },
@@ -68,6 +72,8 @@ const COPY = {
     resetMessage: "Are you sure you want to reset the entire warehouse map? All locations will be removed and the map will need to be uploaded again from scratch.",
     resetConfirm: "Yes, reset map",
     deleteSuccess: "Deleted location {{code}}.",
+    resetStatusAction: "Reset status",
+    resetStatusSuccess: "Location {{code}} status has been changed to pending.",
     resetSuccess: "The warehouse map has been reset. Upload a new map file to continue working.",
     actionError: "Could not complete the warehouse map action",
     close: "Close",
@@ -75,6 +81,7 @@ const COPY = {
     irreversible: "This action is irreversible. Before confirming, make sure you really want to permanently remove the selected data from the warehouse map.",
     resetLoading: "Resetting the full warehouse map and clearing locations...",
     deleteLoading: "Deleting the selected location from the warehouse map...",
+    statusResetLoading: "Resetting the location status back to pending...",
     importLoading: "Analyzing the warehouse map file and preparing the import preview...",
     processingMessage: "Resetting the map and importing the new location set...",
     columns: { code: "Location", zone: "Zone", status: "Status" },
@@ -98,6 +105,8 @@ const COPY = {
     resetMessage: "Mochtest du die komplette Lagerkarte wirklich zurucksetzen? Alle Lokationen werden entfernt und die Karte muss anschliessend neu hochgeladen werden.",
     resetConfirm: "Ja, Karte zurucksetzen",
     deleteSuccess: "Lokation {{code}} wurde geloscht.",
+    resetStatusAction: "Status zurucksetzen",
+    resetStatusSuccess: "Der Status der Lokation {{code}} wurde auf pending gesetzt.",
     resetSuccess: "Die Lagerkarte wurde zuruckgesetzt. Lade eine neue Kartendatei hoch, um weiterzuarbeiten.",
     actionError: "Die Aktion fur die Lagerkarte konnte nicht ausgefuhrt werden",
     close: "Schliessen",
@@ -105,6 +114,7 @@ const COPY = {
     irreversible: "Diese Aktion ist irreversibel. Vergewissere dich vor der Bestatigung, dass du die ausgewahlten Daten dauerhaft aus der Lagerkarte entfernen willst.",
     resetLoading: "Die gesamte Lagerkarte wird zuruckgesetzt und Lokationen werden entfernt...",
     deleteLoading: "Die ausgewahlte Lokation wird aus der Lagerkarte entfernt...",
+    statusResetLoading: "Der Status der Lokation wird auf pending zuruckgesetzt...",
     importLoading: "Datei der Lagerkarte wird analysiert und Importvorschau wird vorbereitet...",
     processingMessage: "Karte wird zuruckgesetzt und neuer Lokationssatz wird importiert...",
     columns: { code: "Lokation", zone: "Zone", status: "Status" },
@@ -248,6 +258,21 @@ export default function WarehouseMapPanel() {
     });
   };
 
+  const handleResetStatus = async (row) => {
+    if (!row?.id) return;
+
+    try {
+      setProcessing(true);
+      await updateWarehouseLocationStatus(row.id, "pending");
+      alert(copy.resetStatusSuccess.replace("{{code}}", row.code));
+      await loadRows();
+    } catch (err) {
+      alert(err.message || copy.actionError);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const openResetConfirm = () => {
     setConfirmModal({
       mode: "reset",
@@ -332,6 +357,13 @@ export default function WarehouseMapPanel() {
             {copy.resetAction}
           </Button>
         }
+        renderActions={(row) => (
+          <>
+            <Button variant="secondary" onClick={() => handleResetStatus(row)}>
+              {copy.resetStatusAction}
+            </Button>
+          </>
+        )}
         onDelete={openDeleteConfirm}
         onAdd={handleAdd}
         addLabel={copy.addLabel}
@@ -396,6 +428,11 @@ export default function WarehouseMapPanel() {
           </div>
         </div>
       ) : null}
+      <LoadingOverlay
+        open={processing && !confirmModal}
+        fullscreen
+        message={copy.statusResetLoading}
+      />
       <LoadingOverlay
         open={importPreparing}
         fullscreen

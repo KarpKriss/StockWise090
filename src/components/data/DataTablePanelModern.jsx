@@ -21,6 +21,7 @@ export default function DataTablePanelModern({
   searchPlaceholder,
   onDelete,
   onEdit,
+  renderActions,
   onAdd,
   addLabel = "",
   pageSize = 25,
@@ -32,7 +33,7 @@ export default function DataTablePanelModern({
   const { t } = useAppPreferences();
   const [searchValue, setSearchValue] = useState("");
   const [internalPage, setInternalPage] = useState(1);
-  const showActions = Boolean(onDelete || onEdit);
+  const showActions = Boolean(onDelete || onEdit || renderActions);
   const isServerPagination = typeof onPageChange === "function" && typeof page === "number";
 
   useEffect(() => {
@@ -202,6 +203,7 @@ export default function DataTablePanelModern({
                 ))}
                 {showActions ? (
                   <td>
+                    {renderActions ? renderActions(row) : null}
                     {onDelete ? (
                       <button className="app-button app-button--secondary" onClick={() => onDelete(row)}>
                         {t("common.delete")}

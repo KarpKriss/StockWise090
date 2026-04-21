@@ -232,6 +232,18 @@ export async function deleteWarehouseLocation(id, siteId = readActiveSiteId()) {
   }
 }
 
+export async function updateWarehouseLocationStatus(id, status, siteId = readActiveSiteId()) {
+  const { error } = await applySiteFilter(
+    supabase.from("locations").update({ status }).eq("id", id),
+    siteId
+  );
+
+  if (error) {
+    console.error("UPDATE LOCATION STATUS ERROR:", error);
+    throw new Error(error.message || "Blad zmiany statusu lokalizacji");
+  }
+}
+
 export async function resetWarehouseMap(siteId = readActiveSiteId()) {
   const { error } = await applySiteFilter(
     supabase.from("locations").delete(),
