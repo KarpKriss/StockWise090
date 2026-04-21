@@ -12,6 +12,7 @@ export default function ProcessStartModern() {
   const { t } = useAppPreferences();
   const [selectedType, setSelectedType] = useState(null);
   const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleStart() {
     if (!selectedType || starting) {
@@ -20,7 +21,10 @@ export default function ProcessStartModern() {
 
     try {
       setStarting(true);
+      setError("");
       await startSession(selectedType);
+    } catch (err) {
+      setError(err?.message || t("processStart.startError") || "Could not start the process.");
     } finally {
       setStarting(false);
     }
@@ -77,6 +81,7 @@ export default function ProcessStartModern() {
           {t("processStart.start")}
         </Button>
       </div>
+      {error ? <div className="input-error-text">{error}</div> : null}
       <LoadingOverlay
         open={starting}
         fullscreen

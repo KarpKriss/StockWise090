@@ -42,7 +42,7 @@ export function SessionProvider({ children }) {
       setLoading(true);
 
       try {
-        const active = await getActiveSession(user.id);
+          const active = await getActiveSession(user.id, user.site_id);
 
         if (cancelled) return;
 
@@ -240,7 +240,7 @@ export function SessionProvider({ children }) {
       try {
         await updateSessionHeartbeat(activeSessionId);
 
-        const latest = await getActiveSession(user.id);
+        const latest = await getActiveSession(user.id, user.site_id);
 
         if (!latest) {
           await forceLogout("SESSION_LOST");

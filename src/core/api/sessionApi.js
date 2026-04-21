@@ -210,15 +210,20 @@ export async function heartbeatWithRetry(session_id, retries = 3) {
 /**
  * GET ACTIVE SESSION FROM DB (source of truth)
  */
-export async function getActiveSession(user_id) {
-  const { data, error } = await supabase
+export async function getActiveSession(user_id, site_id = null) {
+  let query = supabase
     .from('sessions')
     .select('*')
     .eq('user_id', user_id)
     .in('status', ['active', 'ACTIVE', 'paused', 'PAUSED'])
     .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  if (site_id) {
+    query = query.eq('site_id', site_id);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     return null;
