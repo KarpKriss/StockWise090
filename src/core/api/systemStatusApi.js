@@ -76,8 +76,260 @@ async function fetchLocationMap(locationIds = [], siteId = readActiveSiteId()) {
   return new Map((data || []).map((row) => [row.id, row]));
 }
 
+function buildSiteScopedAlerts(summary = {}) {
+  const alerts = [];
+
+  if (Number(summary.stale_locations || 0) > 0) {
+    alerts.push({
+      code: "stale_locations",
+      title: "Porzucone lokalizacje",
+      severity: Number(summary.stale_locations || 0) >= 3 ? "critical" : "warning",
+      category: "locations",
+      value: Number(summary.stale_locations || 0),
+      description: "Lokalizacje pozostaly w toku bez zywej sesji albo z przeterminowanym lockiem.",
+      recommendation: "Sprawdz szczegoly i zwolnij lub zamknij zawieszone przypadki.",
+    });
+  }
+
+  if (Number(summary.unresolved_issues || 0) > 0) {
+    alerts.push({
+      code: "open_problems",
+      title: "Otwarte problemy",
+      severity: Number(summary.unresolved_issues || 0) >= 5 ? "critical" : "warning",
+      category: "issues",
+      value: Number(summary.unresolved_issues || 0),
+      description: "W magazynie sa nierozwiazane problemy operacyjne.",
+      recommendation: "Otworz szczegoly problemow i zdejmij blokady wymagajace reakcji.",
+    });
+  }
+
+  if (Number(summary.active_sessions || 0) > 0 && Number(summary.recent_entries_1h || 0) === 0) {
+    alerts.push({
+      code: "recent_entries_1h",
+      title: "Brak swiezych wpisow",
+      severity: "warning",
+      category: "entries",
+      value: 0,
+      description: "Sa aktywne sesje, ale w ostatniej godzinie nie pojawily sie zadne wpisy.",
+      recommendation: "Sprawdz szczegoly aktywnych sesji i lokalizacji w toku.",
+    });
+  }
+
+  return alerts;
+}
+
+function buildOverallMetaFromSummary(summary = {}) {
+  if (Number(summary.stale_locations || 0) > 0 || Number(summary.users_without_role || 0) > 0) {
+    return {
+      overall_status: "critical",
+      overall_label: "Wymagana pilna reakcja administratora",
+    };
+  }
+
+  if (
+    Number(summary.unresolved_issues || 0) > 0 ||
+    Number(summary.locked_accounts || 0) > 0 ||
+    Number(summary.stale_sessions || 0) > 0
+  ) {
+    return {
+      overall_status: "warning",
+      overall_label: "Potrzebna uwaga administracyjna",
+    };
+  }
+
+  return {
+    overall_status: "healthy",
+    overall_label: "System pracuje stabilnie",
+  };
+}
+
+async function fetchSiteScopedSystemStatus(activeSiteId) {
+  const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const [sessions, locations, entriesLastHour, importLogsResult, adminUsersEdgeHealth, errorLogs, accessRows] = await Promise.all([
+    fetchAllRows(() =>
+      applySiteFilter(
+        supabase
+          .from("sessions")
+          .select("id, user_id, operator, status, started_at, ended_at, last_activity, created_at"),
+        activeSiteId
+      )
+    ),
+    fetchAllRows(() =>
+      applySiteFilter(
+        supabase
+          .from("locations")
+          .select("id, status, session_id, locked_at"),
+        activeSiteId
+      )
+    ),
+    fetchAllRows(() =>
+      applySiteFilter(
+        supabase
+          .from("entries")
+          .select("id, user_id, timestamp, created_at")
+          .gte("timestamp", oneHourAgoIso),
+        activeSiteId
+      )
+    ),
+    applySiteFilter(
+      supabase
+        .from("import_logs")
+        .select("id, user_id, type, created_at")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      activeSiteId
+    ),
+    checkAdminUsersBackendHealth(),
+    fetchErrorLogs({ limit: 8 }).catch(() => []),
+    applySiteFilter(
+      supabase
+        .from("user_site_access")
+        .select("user_id, role, status")
+        .eq("status", "active"),
+      activeSiteId
+    ),
+  ]);
+
+  const sessionMap = new Map((sessions || []).map((row) => [row.id, row]));
+  const activeSessionRows = (sessions || []).filter((row) => String(row.status || "").toLowerCase() === "active");
+  const pausedSessionRows = (sessions || []).filter((row) => String(row.status || "").toLowerCase() === "paused");
+  const activeUserKeys = new Set(
+    activeSessionRows.map((row) => row.user_id || row.operator || row.id).filter(Boolean)
+  );
+  const staleSessionRows = activeSessionRows.filter((row) => {
+    const lastSignal = row.last_activity || row.started_at || row.created_at;
+    const minutesSinceSignal = diffMinutes(lastSignal);
+    return minutesSinceSignal !== null && minutesSinceSignal >= STALE_SESSION_MINUTES;
+  });
+
+  const inProgressLocations = (locations || []).filter(
+    (row) => String(row.status || "").toLowerCase() === "in_progress"
+  );
+  const staleLocations = inProgressLocations.filter((row) => {
+    const session = sessionMap.get(row.session_id);
+    if (!session) return true;
+    if (!["active", "paused"].includes(String(session.status || "").toLowerCase())) return true;
+    const minutesSinceSignal = diffMinutes(session.last_activity || session.started_at || row.locked_at);
+    return minutesSinceSignal !== null && minutesSinceSignal >= STALE_SESSION_MINUTES;
+  });
+
+  const locationMap = await fetchLocationMap(
+    [...new Set(((await supabase.from("empty_location_issues").select("location_id").order("created_at", { ascending: false })).data || []).map((row) => row.location_id).filter(Boolean))],
+    activeSiteId
+  );
+
+  const issueResult = await supabase
+    .from("empty_location_issues")
+    .select("id, location_id, status")
+    .order("created_at", { ascending: false });
+
+  if (issueResult.error) {
+    console.error("SYSTEM STATUS SITE ISSUES ERROR:", issueResult.error);
+    throw new Error(issueResult.error.message || "Nie udalo sie pobrac problemow magazynu");
+  }
+
+  const unresolvedIssues = (issueResult.data || []).filter(
+    (row) =>
+      locationMap.has(row.location_id) &&
+      !["resolved", "closed"].includes(String(row.status || "").toLowerCase())
+  );
+
+  const accessData = accessRows.error ? [] : accessRows.data || [];
+  const scopedUserIds = [...new Set(accessData.map((row) => row.user_id).filter(Boolean))];
+  const profiles = scopedUserIds.length
+    ? (await supabase
+        .from("profiles")
+        .select("user_id, role, lock_until")
+        .in("user_id", scopedUserIds)).data || []
+    : [];
+  const profileMap = new Map((profiles || []).map((row) => [row.user_id, row]));
+
+  const lockedAccounts = scopedUserIds.filter((userId) => {
+    const lockUntil = profileMap.get(userId)?.lock_until;
+    return lockUntil ? new Date(lockUntil).getTime() > Date.now() : false;
+  }).length;
+
+  const usersWithoutRole = accessData.filter((row) => {
+    const accessRole = String(row.role || "").trim();
+    const profileRole = String(profileMap.get(row.user_id)?.role || "").trim();
+    return !accessRole && !profileRole;
+  }).length;
+
+  const summary = {
+    ...buildOverallMetaFromSummary({
+      stale_locations: staleLocations.length,
+      unresolved_issues: unresolvedIssues.length,
+      locked_accounts: lockedAccounts,
+      users_without_role: usersWithoutRole,
+      stale_sessions: staleSessionRows.length,
+    }),
+    database_status: "connected",
+    api_status: adminUsersEdgeHealth.ok ? "connected" : "degraded",
+    app_version: APP_VERSION,
+    total_users: scopedUserIds.length,
+    active_users: activeUserKeys.size,
+    active_sessions: activeSessionRows.length,
+    paused_sessions: pausedSessionRows.length,
+    in_progress_locations: inProgressLocations.length,
+    stale_sessions: staleSessionRows.length,
+    stale_locations: staleLocations.length,
+    unresolved_issues: unresolvedIssues.length,
+    recent_entries_1h: (entriesLastHour || []).length,
+    locked_accounts: lockedAccounts,
+    users_without_role: usersWithoutRole,
+    generated_at: new Date().toISOString(),
+  };
+
+  const processStatuses = [
+    {
+      code: "site_scoped_status",
+      label: "Site scoped health",
+      status: "connected",
+      description: "Statusy sa liczone bezposrednio z danych aktywnego magazynu.",
+    },
+    {
+      code: "admin_users_backend",
+      label: "Backend admin-users",
+      status: adminUsersEdgeHealth.ok ? "connected" : "degraded",
+      description: adminUsersEdgeHealth.ok
+        ? "Edge function administratorska jest dostepna dla create/reset/delete."
+        : "Edge function administratorska nie odpowiada lub nie ma pelnej konfiguracji.",
+    },
+    {
+      code: "import_logs",
+      label: "Logi importow",
+      status: importLogsResult.error ? "degraded" : "connected",
+      description: importLogsResult.error
+        ? "Panel nie mogl pobrac ostatnich importow danych."
+        : "Logi importow sa dostepne dla administratora.",
+    },
+    {
+      code: "client_error_logs",
+      label: "Log bledow klienta",
+      status: Array.isArray(errorLogs) ? "connected" : "degraded",
+      description: Array.isArray(errorLogs)
+        ? "Panel ma dostep do zarejestrowanych bledow aplikacyjnych."
+        : "Nie udalo sie pobrac logow bledow aplikacji.",
+    },
+  ];
+
+  return {
+    source: "site-scoped",
+    summary,
+    alerts: buildSiteScopedAlerts(summary),
+    importLogs: importLogsResult.error ? [] : importLogsResult.data || [],
+    errorLogs: errorLogs || [],
+    processStatuses,
+  };
+}
+
 export async function fetchSystemStatus() {
   const activeSiteId = readActiveSiteId();
+  if (activeSiteId) {
+    return fetchSiteScopedSystemStatus(activeSiteId);
+  }
+
   const summaryResult = await supabase.rpc("get_admin_system_health_summary");
   const alertsResult = await supabase.rpc("get_admin_system_health_alerts");
 

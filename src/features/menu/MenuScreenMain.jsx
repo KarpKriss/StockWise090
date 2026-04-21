@@ -78,9 +78,7 @@ export default function MenuScreenMain() {
       : null;
   }, [user?.accessible_sites, user?.site_id]);
   const activeSiteLabel = activeSite
-    ? activeSite.name
-      ? `${activeSite.name} (${activeSite.code || activeSite.id})`
-      : activeSite.code || activeSite.id
+    ? activeSite.label || activeSite.name || activeSite.code || activeSite.id
     : t("menu.noAssignedWarehouse");
   const filteredMenu = menuItems.filter((item) => hasPermission(role, item.permission));
   const [quickStartOpen, setQuickStartOpen] = useState(false);

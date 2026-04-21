@@ -17,7 +17,7 @@ function normalizeSiteOption(row = {}) {
     code,
     name,
     status,
-    label: code && name && code !== name ? `${name} (${code})` : name || code || id,
+    label: name || code || id,
     isDefault: Boolean(row.is_default),
   };
 }
