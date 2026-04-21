@@ -1,4 +1,5 @@
 import React from "react";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import { useSession } from "../../core/session/AppSession";
 
 function getOperationMeta(type) {
@@ -24,7 +25,13 @@ function getOperationMeta(type) {
 }
 
 function SessionOperationsList() {
+  const { language } = useAppPreferences();
   const { session } = useSession();
+  const copy = {
+    pl: { title: "Operacje w tej sesji", defaultOperation: "operacja" },
+    en: { title: "Operations in this session", defaultOperation: "operation" },
+    de: { title: "Operationen in dieser Sitzung", defaultOperation: "Operation" },
+  }[language];
 
   if (!session || !session.operations || session.operations.length === 0) {
     return null;
@@ -33,14 +40,14 @@ function SessionOperationsList() {
   return (
     <div style={{ marginTop: 40 }}>
       <div className="screen-title" style={{ fontSize: 18 }}>
-        Operacje w tej sesji
+        {copy.title}
       </div>
 
       <div className="confirm-card">
         {session.operations.map((op, index) => {
           const meta = getOperationMeta(op.type);
           const quantity = Number(op.quantity) || 0;
-          const label = op.sku || op.reason || String(op.type || "operacja");
+          const label = op.sku || op.reason || String(op.type || copy.defaultOperation);
 
           return (
             <div

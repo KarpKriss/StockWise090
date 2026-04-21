@@ -1,6 +1,14 @@
 import React from "react";
+import { useAppPreferences } from "../../../core/preferences/AppPreferences";
 
 function QuantityStep({ value, onChange, error }) {
+  const { language } = useAppPreferences();
+  const copy = {
+    pl: { title: "Wprowadz ilosc", deleteLabel: "Usun ostatnia cyfre" },
+    en: { title: "Enter quantity", deleteLabel: "Remove last digit" },
+    de: { title: "Menge eingeben", deleteLabel: "Letzte Ziffer loschen" },
+  }[language];
+
   const append = (digit) => {
     onChange((value || "") + digit);
   };
@@ -15,7 +23,7 @@ function QuantityStep({ value, onChange, error }) {
 
   return (
     <>
-      <div className="screen-title">Wprowadź ilość</div>
+      <div className="screen-title">{copy.title}</div>
 
       <div className="quantity-display">{value || "0"}</div>
 
@@ -34,8 +42,8 @@ function QuantityStep({ value, onChange, error }) {
           0
         </button>
 
-        <button className="key-btn control" onClick={remove}>
-          ⌫
+        <button className="key-btn control" onClick={remove} aria-label={copy.deleteLabel}>
+          <-
         </button>
       </div>
 

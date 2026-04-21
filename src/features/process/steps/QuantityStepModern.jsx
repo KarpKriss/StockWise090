@@ -1,8 +1,15 @@
 import { Delete, Calculator } from "lucide-react";
+import { useAppPreferences } from "../../../core/preferences/AppPreferences";
 
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 export default function QuantityStepModern({ value, onChange, error }) {
+  const { language } = useAppPreferences();
+  const copy = {
+    pl: { title: "Wprowadz ilosc", delete: "Usun" },
+    en: { title: "Enter quantity", delete: "Delete" },
+    de: { title: "Menge eingeben", delete: "Loschen" },
+  }[language];
   const append = (digit) => onChange(`${value || ""}${digit}`);
   const clear = () => onChange("");
   const remove = () => onChange((value || "").slice(0, -1));
@@ -14,7 +21,7 @@ export default function QuantityStepModern({ value, onChange, error }) {
           <div className="scan-visual">
             <Calculator size={20} />
           </div>
-          <span>Wprowadz ilosc</span>
+          <span>{copy.title}</span>
         </div>
 
         <div className="quantity-display">{value || "0"}</div>
@@ -34,7 +41,7 @@ export default function QuantityStepModern({ value, onChange, error }) {
             0
           </button>
 
-          <button type="button" className="key-btn control" onClick={remove} aria-label="Usun">
+          <button type="button" className="key-btn control" onClick={remove} aria-label={copy.delete}>
             <Delete size={18} />
           </button>
         </div>

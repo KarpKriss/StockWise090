@@ -1125,11 +1125,11 @@ export default function ManualInventoryProcess() {
 
               <div className="process-meta-grid">
                 <div className="process-meta-item">
-                  <div className="process-meta-item__label">Lokalizacja</div>
+                  <div className="process-meta-item__label">{copy.currentLocationLabel}</div>
                   <div className="process-meta-item__value">{currentLocation.code}</div>
                 </div>
                 <div className="process-meta-item">
-                  <div className="process-meta-item__label">Strefa</div>
+                  <div className="process-meta-item__label">{copy.zoneLabel}</div>
                   <div className="process-meta-item__value">{currentLocation.zone || currentZone || "-"}</div>
                 </div>
               </div>

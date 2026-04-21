@@ -1,25 +1,40 @@
 import React from "react";
+import { useAppPreferences } from "../../../core/preferences/AppPreferences";
 
-const DEFAULT_OPTIONS = [
-  { value: "surplus", label: "Nadwyzka" },
-  { value: "brak", label: "Brak" },
-];
+function TypeStep({ value, onChange, error, options = [] }) {
+  const { language } = useAppPreferences();
+  const copy = {
+    pl: {
+      title: "Wybierz typ operacji",
+      shortage: "Brak",
+      surplus: "Nadwyzka",
+    },
+    en: {
+      title: "Choose operation type",
+      shortage: "Shortage",
+      surplus: "Surplus",
+    },
+    de: {
+      title: "Operationstyp wahlen",
+      shortage: "Fehlmenge",
+      surplus: "Mehrmenge",
+    },
+  }[language];
 
-function TypeStep({ value, onChange, error, options = DEFAULT_OPTIONS }) {
-  const resolvedOptions = options?.length
-    ? options.map((option) => ({
-        value: option.value,
-        label: option.label,
-        tone: option.value === "surplus" ? "surplus" : "shortage",
-      }))
-    : DEFAULT_OPTIONS.map((option) => ({
-        ...option,
-        tone: option.value === "surplus" ? "surplus" : "shortage",
-      }));
+  const fallbackOptions = [
+    { value: "surplus", label: copy.surplus },
+    { value: "brak", label: copy.shortage },
+  ];
+  const sourceOptions = options?.length ? options : fallbackOptions;
+  const resolvedOptions = sourceOptions.map((option) => ({
+    value: option.value,
+    label: option.label,
+    tone: option.value === "surplus" ? "surplus" : "shortage",
+  }));
 
   return (
     <>
-      <div className="screen-title">Wybierz typ operacji</div>
+      <div className="screen-title">{copy.title}</div>
 
       <div className="choice-grid">
         {resolvedOptions.map((option) => (

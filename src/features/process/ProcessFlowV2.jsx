@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { saveEntry } from "../../core/api/entriesApi";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import { processConfig } from "../../core/config/processConfig";
 import { productMap } from "../../core/config/productMap";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -17,8 +18,42 @@ import SessionOperationsList from "./SessionOperationsList";
 
 export default function ProcessFlow() {
   const navigate = useNavigate();
+  const { language } = useAppPreferences();
   const { user } = useAuth();
   const { session, isActive, addOperation } = useSession();
+  const copy = {
+    pl: {
+      noSession: "Brak aktywnej sesji",
+      saveError: "Blad zapisu operacji",
+      unknownEan: "EAN nieznany - mozesz wpisac SKU recznie",
+      configError: "Blad konfiguracji procesu",
+      back: "Wstecz",
+      next: "Dalej",
+      save: "Zapisz operacje",
+      backToMenu: "Powrot do menu",
+    },
+    en: {
+      noSession: "No active session",
+      saveError: "Could not save the operation",
+      unknownEan: "Unknown EAN - you can enter the SKU manually",
+      configError: "Process configuration error",
+      back: "Back",
+      next: "Next",
+      save: "Save operation",
+      backToMenu: "Back to menu",
+    },
+    de: {
+      noSession: "Keine aktive Sitzung",
+      saveError: "Operation konnte nicht gespeichert werden",
+      unknownEan: "EAN unbekannt - du kannst die SKU manuell eingeben",
+      configError: "Fehler in der Prozesskonfiguration",
+      back: "Zuruck",
+      next: "Weiter",
+      save: "Operation speichern",
+      backToMenu: "Zuruck zum Menu",
+    },
+  }[language];
+
   const {
     currentStep,
     nextStep,
@@ -34,7 +69,7 @@ export default function ProcessFlow() {
   });
 
   if (!session?.session_id || !isActive) {
-    return <div className="screen-title">Brak aktywnej sesji</div>;
+    return <div className="screen-title">{copy.noSession}</div>;
   }
 
   const handleFinalSave = async () => {
@@ -55,7 +90,7 @@ export default function ProcessFlow() {
       resetProcess();
     } catch (error) {
       console.error("PROCESS SAVE ERROR:", error);
-      alert(error.message || "Błąd zapisu operacji");
+      alert(error.message || copy.saveError);
     }
   };
 
@@ -79,7 +114,7 @@ export default function ProcessFlow() {
             }}
             error={
               processData.ean && !productMap[processData.ean]
-                ? "EAN nieznany - możesz wpisać SKU ręcznie"
+                ? copy.unknownEan
                 : errors.ean
             }
           />
@@ -119,7 +154,7 @@ export default function ProcessFlow() {
       case "confirmation":
         return <ConfirmationStep data={processData} />;
       default:
-        return <div className="screen-title">Błąd konfiguracji procesu</div>;
+        return <div className="screen-title">{copy.configError}</div>;
     }
   };
 
@@ -128,10 +163,10 @@ export default function ProcessFlow() {
       {renderStep()}
 
       <div style={{ marginTop: 32, display: "flex", gap: 12 }}>
-        {currentStep !== "location" && <button onClick={previousStep}>Wstecz</button>}
-        {!isLastStep && <button onClick={nextStep}>Dalej</button>}
-        {isLastStep && <button onClick={handleFinalSave}>Zapisz operację</button>}
-        <button onClick={() => navigate("/menu")}>Powrót do menu</button>
+        {currentStep !== "location" && <button onClick={previousStep}>{copy.back}</button>}
+        {!isLastStep && <button onClick={nextStep}>{copy.next}</button>}
+        {isLastStep && <button onClick={handleFinalSave}>{copy.save}</button>}
+        <button onClick={() => navigate("/menu")}>{copy.backToMenu}</button>
       </div>
 
       {currentStep === "confirmation" && <SessionOperationsList />}
